@@ -51,8 +51,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text } = req.body || {};
-
+    const { caption: text } = req.body || {};
     if (!text) {
       return res.status(400).json({ error: "投稿文がありません" });
     }
