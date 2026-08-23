@@ -8,7 +8,7 @@ const enc = (v) =>
     .replace(/\)/g, "%29")
     .replace(/\*/g, "%2A");
 
-function auth(method, url, ck, cs, at, ats) {
+function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
   const oauth = {
     oauth_consumer_key: ck,
     oauth_nonce: crypto.randomBytes(16).toString("hex"),
