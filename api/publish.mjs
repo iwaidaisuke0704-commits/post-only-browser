@@ -77,7 +77,9 @@ if (imageBase64) {
   const uploadResponse = await fetch(uploadUrl, {
     method: "POST",
     headers: {
-      Authorization: auth("POST", uploadUrl, ck, cs, at, ats),
+      Authorization: auth("POST", uploadUrl, ck, cs, at, ats, {
+  media_data: imageBase64,
+}),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: form.toString(),
