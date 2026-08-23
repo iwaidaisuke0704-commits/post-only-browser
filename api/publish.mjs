@@ -18,7 +18,7 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
     oauth_version: "1.0",
   };
 
-  const params = Object.entries(oauth)
+  const params = Object.entries({ ...oauth, ...bodyParams })
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${enc(k)}=${enc(v)}`)
     .join("&");
