@@ -84,7 +84,7 @@ if (imageBase64) {
   });
 
   const uploadData = await uploadResponse.json();
-
+console.log("X upload response:", uploadResponse.status, uploadData);
   if (!uploadResponse.ok) {
     return res.status(uploadResponse.status).json({
       error: "画像のアップロードに失敗しました",
