@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { caption: text } = req.body || {};
+    const { caption: text, imageBase64, mimeType } = req.body || {};
     if (!text) {
       return res.status(400).json({ error: "投稿文がありません" });
     }
@@ -66,7 +66,34 @@ export default async function handler(req, res) {
         error: "Xの環境変数が設定されていません",
       });
     }
+let mediaId = null;
 
+if (imageBase64) {
+  const uploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
+
+  const form = new URLSearchParams();
+  form.set("media_data", imageBase64);
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: auth("POST", uploadUrl, ck, cs, at, ats),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form.toString(),
+  });
+
+  const uploadData = await uploadResponse.json();
+
+  if (!uploadResponse.ok) {
+    return res.status(uploadResponse.status).json({
+      error: "画像のアップロードに失敗しました",
+      details: uploadData,
+    });
+  }
+
+  mediaId = uploadData.media_id_string;
+}
     const url = "https://api.x.com/2/tweets";
 
     const response = await fetch(url, {
@@ -75,7 +102,9 @@ export default async function handler(req, res) {
         Authorization: auth("POST", url, ck, cs, at, ats),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(
+  mediaId ? { text, media: { media_ids: [mediaId] } } : { text }
+),
     });
 
     const data = await response.json();
