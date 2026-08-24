@@ -7,12 +7,14 @@
 
   <style>
     *{box-sizing:border-box}
+
     body{
       margin:0;
       background:#f4f4f2;
       font-family:system-ui;
       color:#111
     }
+
     main{
       max-width:540px;
       min-height:100vh;
@@ -20,37 +22,41 @@
       background:#fff;
       padding:28px 20px
     }
+
     h1{margin:4px 0}
+
     .sub{color:#777}
 
     .pick{
-      display:grid;
-      place-items:center;
+      display:block;
       min-height:200px;
       border:2px dashed #bbb;
       border-radius:20px;
       overflow:hidden;
-      font-weight:800;
-      padding:12px
+      cursor:pointer;
+      padding:16px
     }
 
     #pickText{
-      padding:40px 10px
+      min-height:165px;
+      display:grid;
+      place-items:center;
+      font-weight:800;
+      text-align:center
     }
 
-    #previews{
-      display:none;
-      width:100%;
-      grid-template-columns:1fr 1fr;
-      gap:8px
+    #preview{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px
     }
 
-    #previews img{
+    #preview img{
       width:100%;
       aspect-ratio:4/5;
       object-fit:contain;
       background:#fff;
-      border-radius:10px
+      border-radius:12px
     }
 
     textarea{
@@ -95,7 +101,8 @@
       text-align:center;
       min-height:52px;
       padding:16px;
-      font-weight:750
+      font-weight:750;
+      overflow-wrap:anywhere
     }
 
     .note{
@@ -122,10 +129,11 @@
     >
 
     <span id="pickText">
-      画像を選ぶ（最大4枚）
+      画像を選ぶ<br>
+      <small>Instagramは最大10枚</small>
     </span>
 
-    <div id="previews"></div>
+    <div id="preview"></div>
   </label>
 
   <textarea
@@ -134,6 +142,7 @@
   ></textarea>
 
   <div class="targets">
+
     <label>
       <input
         id="toX"
@@ -150,6 +159,7 @@
       >
       Instagram
     </label>
+
   </div>
 
   <button id="send">
@@ -164,11 +174,12 @@
 
 
 <script>
+
 const file =
   document.querySelector("#file");
 
-const previews =
-  document.querySelector("#previews");
+const preview =
+  document.querySelector("#preview");
 
 const pickText =
   document.querySelector("#pickText");
@@ -191,30 +202,19 @@ const status =
 
 file.onchange = () => {
 
+  preview.innerHTML = "";
+
   const files =
     Array.from(file.files || []);
 
   if (!files.length) {
-    previews.innerHTML = "";
-    previews.style.display = "none";
-    pickText.style.display = "block";
+    pickText.style.display = "grid";
     return;
   }
 
-  if (files.length > 4) {
-    status.textContent =
-      "画像は最大4枚までです";
+  pickText.style.display = "none";
 
-    file.value = "";
-    previews.innerHTML = "";
-    previews.style.display = "none";
-    pickText.style.display = "block";
-    return;
-  }
-
-  previews.innerHTML = "";
-
-  files.forEach((f) => {
+  for (const f of files) {
 
     const img =
       document.createElement("img");
@@ -222,14 +222,12 @@ file.onchange = () => {
     img.src =
       URL.createObjectURL(f);
 
-    previews.appendChild(img);
-  });
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+    };
 
-  previews.style.display = "grid";
-  pickText.style.display = "none";
-
-  status.textContent =
-    `${files.length}枚選択しました`;
+    preview.appendChild(img);
+  }
 };
 
 
@@ -237,13 +235,18 @@ function b64(f) {
 
   return new Promise((res, rej) => {
 
-    const r = new FileReader();
+    const r =
+      new FileReader();
 
-    r.onload = () =>
+    r.onload = () => {
+
+      const result =
+        String(r.result);
+
       res(
-        String(r.result)
-          .split(",")[1]
+        result.split(",")[1]
       );
+    };
 
     r.onerror = rej;
 
@@ -252,13 +255,18 @@ function b64(f) {
 }
 
 
-// Instagram用画像を作る。
-// 元画像は一切トリミングしない。
-// 1080 × 1350 の白背景へ収める。
-async function makeInstagramImage(file) {
+/*
+  Instagram用画像生成
+
+  元画像は切らない。
+  1080 × 1350 の白いキャンバスに
+  縦横比を維持したまま中央配置。
+*/
+
+async function makeInstagramImage(f) {
 
   const bitmap =
-    await createImageBitmap(file);
+    await createImageBitmap(f);
 
   const canvas =
     document.createElement("canvas");
@@ -343,59 +351,87 @@ send.onclick = async () => {
     caption.value.trim();
 
   const files =
-    Array.from(
-      file.files || []
-    );
+    Array.from(file.files || []);
+
 
   if (!text) {
+
     status.textContent =
       "投稿文を入力してください";
+
     return;
   }
+
 
   if (
     !toX.checked &&
     !toIg.checked
   ) {
+
     status.textContent =
       "投稿先を選んでください";
+
     return;
   }
 
-  if (files.length > 4) {
-    status.textContent =
-      "画像は最大4枚までです";
-    return;
-  }
 
   if (
     toIg.checked &&
     files.length === 0
   ) {
+
     status.textContent =
       "Instagram投稿には画像が必要です";
+
     return;
   }
 
+
+  if (
+    toIg.checked &&
+    files.length > 10
+  ) {
+
+    status.textContent =
+      "Instagramは最大10枚です";
+
+    return;
+  }
+
+
   send.disabled = true;
+
+  status.textContent =
+    "画像を準備しています…";
+
 
   try {
 
     const body = {
+
       caption: text,
-      x: toX.checked,
-      instagram: toIg.checked
+
+      x:
+        toX.checked,
+
+      instagram:
+        toIg.checked,
+
+      images: []
     };
 
 
-    // Instagramの場合
-    // 選択した画像を全部4:5へ整形する
-    if (toIg.checked) {
+    /*
+      Instagramを使う場合
 
-      status.textContent =
-        "Instagram用に画像を整えています…";
+      全画像を4:5キャンバスへ変換して
+      images[] に入れる
+    */
 
-      const instagramImages = [];
+    if (
+      toIg.checked &&
+      files.length
+    ) {
 
       for (
         let i = 0;
@@ -404,48 +440,75 @@ send.onclick = async () => {
       ) {
 
         status.textContent =
-          `Instagram用画像を整えています… ${i + 1}/${files.length}`;
+          `Instagram用画像を処理中… ${i + 1}/${files.length}`;
 
-        const converted =
+        const image =
           await makeInstagramImage(
             files[i]
           );
 
-        instagramImages.push(
-          converted
-        );
+        body.images.push(image);
       }
-
-      // 新しい4枚対応データ
-      body.instagramImages =
-        instagramImages;
+    }
 
 
-      // 1枚投稿との互換性も残す
-      if (
-        instagramImages.length === 1
-      ) {
+    /*
+      Xだけの場合
 
-        body.imageBase64 =
-          instagramImages[0]
-            .imageBase64;
+      現在の仕様を壊さないため、
+      最初の画像を従来形式でも送る
+    */
 
-        body.mimeType =
-          instagramImages[0]
-            .mimeType;
-      }
+    if (
+      toX.checked &&
+      !toIg.checked &&
+      files.length
+    ) {
 
-    } else if (files.length) {
-
-      // Xだけの場合は、
-      // 今のpublish.mjsとの互換性を守るため
-      // とりあえず1枚目を今まで通り送る。
       body.imageBase64 =
         await b64(files[0]);
 
       body.mimeType =
         files[0].type ||
         "image/jpeg";
+    }
+
+
+    /*
+      X + Instagram同時投稿の場合
+
+      XにはInstagram用に変換した
+      最初の画像を渡す
+    */
+
+    if (
+      toX.checked &&
+      toIg.checked &&
+      body.images.length
+    ) {
+
+      body.imageBase64 =
+        body.images[0].imageBase64;
+
+      body.mimeType =
+        body.images[0].mimeType;
+    }
+
+
+    /*
+      Instagram旧1枚形式との
+      互換性も残しておく
+    */
+
+    if (
+      body.images.length === 1
+    ) {
+
+      body.imageBase64 =
+        body.images[0].imageBase64;
+
+      body.mimeType =
+        body.images[0].mimeType;
     }
 
 
@@ -470,8 +533,24 @@ send.onclick = async () => {
       );
 
 
-    const j =
-      await r.json();
+    let j;
+
+    try {
+
+      j = await r.json();
+
+    } catch {
+
+      throw new Error(
+        `サーバー応答エラー (${r.status})`
+      );
+    }
+
+
+    console.log(
+      "publish response:",
+      j
+    );
 
 
     if (j.ok) {
@@ -489,14 +568,12 @@ send.onclick = async () => {
     }
 
 
-    console.log(j);
-
-
   } catch (e) {
 
     console.error(e);
 
     status.textContent =
+      e?.message ||
       "画像処理または接続でエラーが発生しました";
 
   } finally {
@@ -504,6 +581,7 @@ send.onclick = async () => {
     send.disabled = false;
   }
 };
+
 </script>
 
 </main>
