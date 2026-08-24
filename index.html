@@ -51,7 +51,7 @@
     }
 
     .previewItem{
-      position:relative;
+      position:relative
     }
 
     .previewItem img{
@@ -80,10 +80,6 @@
       line-height:34px;
       cursor:pointer
     }
-
-    /*
-      画像下の操作エリア
-    */
 
     .imageTools{
       display:none;
@@ -142,6 +138,65 @@
       padding:14px
     }
 
+
+    /*
+      =====================================
+      投稿タイミング
+      =====================================
+    */
+
+    .timing{
+      margin:14px 0;
+      border:1px solid #ddd;
+      border-radius:16px;
+      padding:14px
+    }
+
+    .timingTitle{
+      margin-bottom:12px;
+      font-size:14px;
+      font-weight:800
+    }
+
+    .timingChoices{
+      display:flex;
+      gap:10px
+    }
+
+    .timingChoices label{
+      flex:1;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      padding:12px;
+      border:1px solid #ddd;
+      border-radius:12px;
+      cursor:pointer
+    }
+
+    #scheduleBox{
+      display:none;
+      margin-top:12px
+    }
+
+    #scheduleAt{
+      width:100%;
+      border:1px solid #ddd;
+      border-radius:12px;
+      padding:14px;
+      background:#fff;
+      color:#111;
+      font:inherit;
+      font-size:16px
+    }
+
+
+    /*
+      =====================================
+      投稿ボタン
+      =====================================
+    */
+
     #send{
       width:100%;
       border:0;
@@ -150,7 +205,8 @@
       color:#fff;
       padding:17px;
       font-size:17px;
-      font-weight:800
+      font-weight:800;
+      cursor:pointer
     }
 
     button:disabled{
@@ -177,7 +233,15 @@
 <main>
 
   <h1>POST ONLY</h1>
-  <p class="sub">見る機能はありません。投稿するだけ。</p>
+
+  <p class="sub">
+    見る機能はありません。投稿するだけ。
+  </p>
+
+
+  <!-- ===================================
+       画像
+  ==================================== -->
 
   <label class="pick">
 
@@ -191,21 +255,15 @@
 
     <span id="pickText">
       画像を選ぶ<br>
-      <small>Xは最大4枚 / Instagramは最大10枚</small>
+      <small>
+        Xは最大4枚 / Instagramは最大10枚
+      </small>
     </span>
 
     <div id="preview"></div>
 
   </label>
 
-
-  <!--
-    画像を選んだ後に表示
-
-    ○枚選択中
-    ＋画像を追加
-    全部消す
-  -->
 
   <div
     id="imageTools"
@@ -231,11 +289,19 @@
   </div>
 
 
+  <!-- ===================================
+       投稿文
+  ==================================== -->
+
   <textarea
     id="caption"
     placeholder="投稿文"
   ></textarea>
 
+
+  <!-- ===================================
+       投稿先
+  ==================================== -->
 
   <div class="targets">
 
@@ -258,6 +324,58 @@
 
   </div>
 
+
+  <!-- ===================================
+       投稿タイミング
+  ==================================== -->
+
+  <div class="timing">
+
+    <div class="timingTitle">
+      投稿タイミング
+    </div>
+
+    <div class="timingChoices">
+
+      <label>
+        <input
+          id="postNow"
+          type="radio"
+          name="timing"
+          value="now"
+          checked
+        >
+        今すぐ
+      </label>
+
+      <label>
+        <input
+          id="postLater"
+          type="radio"
+          name="timing"
+          value="scheduled"
+        >
+        予約
+      </label>
+
+    </div>
+
+
+    <div id="scheduleBox">
+
+      <input
+        id="scheduleAt"
+        type="datetime-local"
+      >
+
+    </div>
+
+  </div>
+
+
+  <!-- ===================================
+       投稿ボタン
+  ==================================== -->
 
   <button id="send">
     投稿する
@@ -310,12 +428,84 @@ const send =
 const status =
   document.querySelector("#status");
 
+const postNow =
+  document.querySelector("#postNow");
+
+const postLater =
+  document.querySelector("#postLater");
+
+const scheduleBox =
+  document.querySelector("#scheduleBox");
+
+const scheduleAt =
+  document.querySelector("#scheduleAt");
+
 
 /*
+  ========================================
   現在選択中の画像
+  ========================================
 */
 
 let selectedFiles = [];
+
+
+/*
+  ========================================
+  予約UI
+  ========================================
+*/
+
+function updateTimingUI() {
+
+  if (postLater.checked) {
+
+    scheduleBox.style.display =
+      "block";
+
+    send.textContent =
+      "投稿を予約する";
+
+  } else {
+
+    scheduleBox.style.display =
+      "none";
+
+    send.textContent =
+      "投稿する";
+  }
+}
+
+
+postNow.onchange =
+  updateTimingUI;
+
+postLater.onchange =
+  updateTimingUI;
+
+
+/*
+  過去日時をなるべく選びにくくする
+*/
+
+function updateMinimumScheduleTime() {
+
+  const now =
+    new Date();
+
+  now.setMinutes(
+    now.getMinutes() -
+    now.getTimezoneOffset()
+  );
+
+  scheduleAt.min =
+    now
+      .toISOString()
+      .slice(0,16);
+}
+
+
+updateMinimumScheduleTime();
 
 
 /*
@@ -367,7 +557,6 @@ function renderPreview() {
       const img =
         document.createElement("img");
 
-
       const objectUrl =
         URL.createObjectURL(f);
 
@@ -382,10 +571,6 @@ function renderPreview() {
         );
       };
 
-
-      /*
-        ×ボタン
-      */
 
       const remove =
         document.createElement("button");
@@ -410,12 +595,10 @@ function renderPreview() {
         e.preventDefault();
         e.stopPropagation();
 
-
         selectedFiles.splice(
           index,
           1
         );
-
 
         renderPreview();
 
@@ -444,11 +627,6 @@ function renderPreview() {
   ========================================
   ＋画像を追加
   ========================================
-
-  画像選択画面を開くだけ。
-
-  選んだ画像は下の
-  file.onchangeで既存画像へ追加される。
 */
 
 addImages.onclick = (e) => {
@@ -462,10 +640,8 @@ addImages.onclick = (e) => {
 
 /*
   ========================================
-  画像を選択したとき
+  画像選択
   ========================================
-
-  既存画像を消さずに追加する。
 */
 
 file.onchange = () => {
@@ -480,12 +656,6 @@ file.onchange = () => {
     return;
   }
 
-
-  /*
-    既存画像
-      ＋
-    今回選んだ画像
-  */
 
   selectedFiles = [
     ...selectedFiles,
@@ -521,8 +691,7 @@ file.onchange = () => {
 
 
   /*
-    同じ写真を再度選択しても
-    onchangeが動くようにする
+    同じ画像をもう一度選べるように
   */
 
   file.value = "";
@@ -593,11 +762,11 @@ function b64(f) {
 
 /*
   ========================================
-  Instagram用画像生成
+  Instagram画像生成
   ========================================
 
-  元画像を切らずに
-  1080 × 1350の白背景へ配置。
+  元画像を切らず
+  1080 × 1350の白背景へ配置
 */
 
 async function makeInstagramImage(
@@ -732,7 +901,6 @@ send.onclick = async () => {
   const text =
     caption.value.trim();
 
-
   const files =
     [...selectedFiles];
 
@@ -813,6 +981,78 @@ send.onclick = async () => {
     return;
   }
 
+
+  /*
+    ======================================
+    予約日時チェック
+    ======================================
+
+    今はUI確認段階。
+
+    まだサーバー側の予約機能は
+    実装していないので、
+    予約を選択した場合はここで止める。
+  */
+
+  if (postLater.checked) {
+
+    if (!scheduleAt.value) {
+
+      status.textContent =
+        "予約日時を選んでください";
+
+      return;
+    }
+
+
+    const scheduledDate =
+      new Date(
+        scheduleAt.value
+      );
+
+
+    if (
+      Number.isNaN(
+        scheduledDate.getTime()
+      )
+    ) {
+
+      status.textContent =
+        "予約日時が正しくありません";
+
+      return;
+    }
+
+
+    if (
+      scheduledDate.getTime() <=
+      Date.now()
+    ) {
+
+      status.textContent =
+        "未来の日時を選んでください";
+
+      return;
+    }
+
+
+    /*
+      次の段階でここを
+      /api/schedule などへ接続する。
+    */
+
+    status.textContent =
+      "予約UIはOK。次にサーバー側を接続します";
+
+    return;
+  }
+
+
+  /*
+    ======================================
+    ここから従来の今すぐ投稿
+    ======================================
+  */
 
   send.disabled =
     true;
@@ -1040,7 +1280,12 @@ send.onclick = async () => {
 };
 
 
+/*
+  初期表示
+*/
+
 renderPreview();
+updateTimingUI();
 
 </script>
 
