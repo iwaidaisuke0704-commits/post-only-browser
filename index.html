@@ -130,7 +130,7 @@
 
     <span id="pickText">
       画像を選ぶ<br>
-      <small>Instagramは最大10枚</small>
+      <small>Xは最大4枚 / Instagramは最大10枚</small>
     </span>
 
     <div id="preview"></div>
@@ -399,6 +399,18 @@ send.onclick = async () => {
   }
 
 
+  if (
+    toX.checked &&
+    files.length > 4
+  ) {
+
+    status.textContent =
+      "Xは最大4枚です";
+
+    return;
+  }
+
+
   send.disabled = true;
 
   status.textContent =
@@ -417,15 +429,59 @@ send.onclick = async () => {
       instagram:
         toIg.checked,
 
-      images: []
+      /*
+        Instagram用
+      */
+      images: [],
+
+      /*
+        X用
+        元画像をそのまま入れる
+      */
+      xImages: []
     };
 
 
     /*
-      Instagramを使う場合
+      X用画像
 
-      全画像を4:5キャンバスへ変換して
-      images[] に入れる
+      最大4枚。
+      Instagram用の4:5変換はせず、
+      選択された元画像をそのまま送る。
+    */
+
+    if (
+      toX.checked &&
+      files.length
+    ) {
+
+      for (
+        let i = 0;
+        i < files.length;
+        i++
+      ) {
+
+        status.textContent =
+          `X用画像を準備中… ${i + 1}/${files.length}`;
+
+        body.xImages.push({
+          imageBase64:
+            await b64(files[i]),
+
+          mimeType:
+            files[i].type ||
+            "image/jpeg"
+        });
+      }
+    }
+
+
+    /*
+      Instagram用画像
+
+      最大10枚。
+      全画像を1080×1350の
+      白キャンバスへ変換する。
     */
 
     if (
@@ -453,55 +509,24 @@ send.onclick = async () => {
 
 
     /*
-      Xだけの場合
+      旧1枚形式との互換性。
 
-      現在の仕様を壊さないため、
-      最初の画像を従来形式でも送る
+      サーバー側を書き換えるまででも
+      最初の画像は従来形式で受け取れる。
     */
 
     if (
-      toX.checked &&
-      !toIg.checked &&
-      files.length
+      body.xImages.length
     ) {
 
       body.imageBase64 =
-        await b64(files[0]);
+        body.xImages[0].imageBase64;
 
       body.mimeType =
-        files[0].type ||
-        "image/jpeg";
-    }
+        body.xImages[0].mimeType;
 
-
-    /*
-      X + Instagram同時投稿の場合
-
-      XにはInstagram用に変換した
-      最初の画像を渡す
-    */
-
-    if (
-      toX.checked &&
-      toIg.checked &&
+    } else if (
       body.images.length
-    ) {
-
-      body.imageBase64 =
-        body.images[0].imageBase64;
-
-      body.mimeType =
-        body.images[0].mimeType;
-    }
-
-
-    /*
-      Instagram旧1枚形式との
-      互換性も残しておく
-    */
-
-    if (
-      body.images.length === 1
     ) {
 
       body.imageBase64 =
