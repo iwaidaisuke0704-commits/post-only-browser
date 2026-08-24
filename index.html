@@ -22,6 +22,7 @@
     }
     h1{margin:4px 0}
     .sub{color:#777}
+
     .pick{
       display:grid;
       place-items:center;
@@ -31,12 +32,14 @@
       overflow:hidden;
       font-weight:800
     }
+
     .pick img{
       display:none;
       width:100%;
       max-height:360px;
       object-fit:contain
     }
+
     textarea{
       width:100%;
       min-height:140px;
@@ -46,17 +49,20 @@
       padding:14px;
       font:inherit
     }
+
     .targets{
       display:flex;
       gap:10px;
       margin:14px 0
     }
+
     .targets label{
       flex:1;
       border:1px solid #ddd;
       border-radius:14px;
       padding:14px
     }
+
     button{
       width:100%;
       border:0;
@@ -67,12 +73,18 @@
       font-size:17px;
       font-weight:800
     }
+
+    button:disabled{
+      opacity:.55
+    }
+
     #status{
       text-align:center;
       min-height:52px;
       padding:16px;
       font-weight:750
     }
+
     .note{
       text-align:center;
       color:#999;
@@ -141,21 +153,97 @@ function b64(f) {
       res(String(r.result).split(",")[1]);
 
     r.onerror = rej;
-
     r.readAsDataURL(f);
   });
 }
 
+
+// Instagram用
+// 元画像を一切切らずに
+// 1080 × 1350 の白いキャンバスへ収める
+async function makeInstagramImage(file) {
+
+  const bitmap = await createImageBitmap(file);
+
+  const canvas = document.createElement("canvas");
+
+  const targetWidth = 1080;
+  const targetHeight = 1350;
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  // 背景を白にする
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(
+    0,
+    0,
+    targetWidth,
+    targetHeight
+  );
+
+  const scale = Math.min(
+    targetWidth / bitmap.width,
+    targetHeight / bitmap.height
+  );
+
+  const drawWidth =
+    Math.round(bitmap.width * scale);
+
+  const drawHeight =
+    Math.round(bitmap.height * scale);
+
+  const x =
+    Math.round((targetWidth - drawWidth) / 2);
+
+  const y =
+    Math.round((targetHeight - drawHeight) / 2);
+
+  // 元画像を縦横比そのままで中央配置
+  ctx.drawImage(
+    bitmap,
+    x,
+    y,
+    drawWidth,
+    drawHeight
+  );
+
+  bitmap.close();
+
+  // JPEG化＋軽く圧縮
+  const dataUrl =
+    canvas.toDataURL("image/jpeg", 0.92);
+
+  return {
+    imageBase64: dataUrl.split(",")[1],
+    mimeType: "image/jpeg"
+  };
+}
+
+
 send.onclick = async () => {
+
   const text = caption.value.trim();
 
   if (!text) {
-    status.textContent = "投稿文を入力してください";
+    status.textContent =
+      "投稿文を入力してください";
     return;
   }
 
   if (!toX.checked && !toIg.checked) {
-    status.textContent = "投稿先を選んでください";
+    status.textContent =
+      "投稿先を選んでください";
+    return;
+  }
+
+  const f = file.files[0];
+
+  if (toIg.checked && !f) {
+    status.textContent =
+      "Instagram投稿には画像が必要です";
     return;
   }
 
@@ -163,7 +251,6 @@ send.onclick = async () => {
   status.textContent = "投稿中…";
 
   try {
-    const f = file.files[0];
 
     const body = {
       caption: text,
@@ -171,33 +258,81 @@ send.onclick = async () => {
       instagram: toIg.checked
     };
 
-    // 画像が選ばれている時だけ画像データを追加
+
     if (f) {
-      body.imageBase64 = await b64(f);
-      body.mimeType = f.type || "image/jpeg";
+
+      // Instagramを選択している場合
+      // 4:5画像へ自動変換
+      if (toIg.checked) {
+
+        status.textContent =
+          "Instagram用に画像を整えています…";
+
+        const instagramImage =
+          await makeInstagramImage(f);
+
+        body.imageBase64 =
+          instagramImage.imageBase64;
+
+        body.mimeType =
+          instagramImage.mimeType;
+
+      } else {
+
+        // Xだけの場合は元画像のまま
+        body.imageBase64 =
+          await b64(f);
+
+        body.mimeType =
+          f.type || "image/jpeg";
+      }
     }
+
+
+    status.textContent = "投稿中…";
 
     const r = await fetch("/api/publish", {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type":
+          "application/json"
       },
+
       body: JSON.stringify(body)
     });
 
+
     const j = await r.json();
 
-    status.textContent = j.ok
-      ? "✓ 投稿しました"
-      : (j.errors?.x || j.error || "投稿できませんでした");
+
+    if (j.ok) {
+
+      status.textContent =
+        "✓ 投稿しました";
+
+    } else {
+
+      status.textContent =
+        j.errors?.instagram ||
+        j.errors?.x ||
+        j.error ||
+        "投稿できませんでした";
+    }
+
 
     console.log(j);
 
+
   } catch (e) {
+
     console.error(e);
-    status.textContent = "接続エラー";
+
+    status.textContent =
+      "画像処理または接続でエラーが発生しました";
 
   } finally {
+
     send.disabled = false;
   }
 };
