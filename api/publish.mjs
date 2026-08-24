@@ -80,6 +80,7 @@ function getXCredentials() {
 
 // Xへ画像1枚をアップロードして
 // media_idを返す
+
 async function uploadXImage(
   imageBase64,
   mimeType,
@@ -169,6 +170,7 @@ async function uploadXImage(
 
 // Xへ投稿
 // imagesは最大4枚
+
 async function postToX(
   text,
   images = []
@@ -186,44 +188,68 @@ async function postToX(
     );
   }
 
-  const mediaIds = [];
 
+  // ======================================
+  // ★ X画像アップロードを並列化
+  //
+  // 以前：
+  //
+  // 画像1アップロード
+  // ↓
+  // 画像2アップロード
+  // ↓
+  // 画像3アップロード
+  // ↓
+  // 画像4アップロード
+  //
+  // 今回：
+  //
+  // 画像1 ─┐
+  // 画像2 ─┤
+  // 画像3 ─┤→ 全部完了 → Tweet作成
+  // 画像4 ─┘
+  //
+  // Promise.allは元の配列順で
+  // 結果を返すので画像順も維持される
+  // ======================================
 
-  // ------------------------------
-  // 各画像をXへアップロード
-  // ※ここは今回は変更しない
-  // ------------------------------
+  const mediaIds =
+    await Promise.all(
+      images.map(
+        async (image, index) => {
 
-  for (
-    let i = 0;
-    i < images.length;
-    i++
-  ) {
+          if (!image?.imageBase64) {
+            throw new Error(
+              `X画像${index + 1}のデータがありません`
+            );
+          }
 
-    const image =
-      images[i];
+          console.log(
+            `X image upload start ${index + 1}/${images.length}`
+          );
 
-    if (!image?.imageBase64) {
-      throw new Error(
-        `X画像${i + 1}のデータがありません`
-      );
-    }
+          const mediaId =
+            await uploadXImage(
+              image.imageBase64,
+              image.mimeType,
+              credentials
+            );
 
-    console.log(
-      `X image upload ${i + 1}/${images.length}`
+          console.log(
+            `X image upload finished ${index + 1}/${images.length}:`,
+            mediaId
+          );
+
+          return mediaId;
+        }
+      )
     );
 
-    const mediaId =
-      await uploadXImage(
-        image.imageBase64,
-        image.mimeType,
-        credentials
-      );
 
-    mediaIds.push(
-      mediaId
-    );
-  }
+  console.log(
+    "X all images uploaded:",
+    mediaIds
+  );
 
 
   // ------------------------------
@@ -360,6 +386,7 @@ async function uploadInstagramBlob(
 
 // Instagramコンテナが
 // FINISHEDになるまで待つ
+
 async function waitForInstagramReady(
   creationId,
   accessToken,
@@ -603,15 +630,7 @@ async function postInstagramCarousel(
 
 
   // ======================================
-  // ★変更点
-  //
-  // 以前：
-  // 1枚作る
-  // → FINISHED待ち
-  // → 次の1枚
-  //
-  // 今回：
-  // 全画像をPromise.allで同時進行
+  // Instagram子画像を並列処理
   // ======================================
 
   const childIds =
@@ -629,7 +648,6 @@ async function postInstagramCarousel(
 
           // ------------------------------
           // Blobへアップロード
-          // ★複数画像が並列で進む
           // ------------------------------
 
           const imageUrl =
@@ -695,7 +713,7 @@ async function postInstagramCarousel(
 
 
           // ------------------------------
-          // ★各画像が同時にREADY待ち
+          // 各画像が同時にREADY待ち
           // ------------------------------
 
           await waitForInstagramReady(
@@ -703,16 +721,6 @@ async function postInstagramCarousel(
             accessToken,
             `child-${index + 1}`
           );
-
-
-          /*
-            Promise.allは
-            mapの元の順番で結果を返す。
-
-            つまり、
-            3枚目が先に完成しても
-            childIdsの画像順は崩れない。
-          */
 
           return data.id;
         }
@@ -727,7 +735,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 2. 親カルーセル作成
+  // 親カルーセル作成
   // ------------------------------
 
   const carouselUrl =
@@ -785,7 +793,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 3. 親の処理完了待ち
+  // 親の処理完了待ち
   // ------------------------------
 
   await waitForInstagramReady(
@@ -796,7 +804,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 4. 公開
+  // 公開
   // ------------------------------
 
   return await publishInstagramContainer(
@@ -890,9 +898,7 @@ export default async function handler(
             : [];
 
 
-        /*
-          古い1枚形式にも対応
-        */
+        // 古い1枚形式にも対応
 
         if (
           finalXImages.length === 0 &&
@@ -952,9 +958,7 @@ export default async function handler(
             : [];
 
 
-        /*
-          古い1枚形式にも対応
-        */
+        // 古い1枚形式にも対応
 
         if (
           instagramImages.length === 0 &&
