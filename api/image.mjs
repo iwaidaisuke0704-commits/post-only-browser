@@ -1,3 +1,5 @@
+import { put } from "@vercel/blob";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -12,26 +14,36 @@ export default async function handler(req, res) {
       });
     }
 
-    const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
-    const userId = process.env.INSTAGRAM_USER_ID;
+    const type = mimeType || "image/jpeg";
 
-    if (!accessToken || !userId) {
-      return res.status(500).json({
-        error: "Instagramの環境変数が設定されていません",
-      });
-    }
+    // Base64 → 画像データ
+    const buffer = Buffer.from(imageBase64, "base64");
+
+    // 拡張子を決める
+    let ext = "jpg";
+    if (type === "image/png") ext = "png";
+    if (type === "image/webp") ext = "webp";
+
+    // 同じ名前にならないようにする
+    const filename =
+      `instagram/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+
+    // Vercel Blobへ保存
+    const blob = await put(filename, buffer, {
+      access: "public",
+      contentType: type,
+      addRandomSuffix: false,
+    });
+
+    console.log("Blob uploaded:", blob.url);
 
     return res.status(200).json({
       ok: true,
-      message: "Instagram画像API準備OK",
-      hasImage: true,
-      mimeType: mimeType || "image/jpeg",
-      instagramUserIdConfigured: true,
-      instagramAccessTokenConfigured: true,
+      imageUrl: blob.url,
     });
 
   } catch (error) {
-    console.error("Instagram image API error:", error);
+    console.error("Blob upload error:", error);
 
     return res.status(500).json({
       error: String(error?.message || error),
