@@ -191,6 +191,7 @@ async function postToX(
 
   // ------------------------------
   // 各画像をXへアップロード
+  // ※ここは今回は変更しない
   // ------------------------------
 
   for (
@@ -600,94 +601,129 @@ async function postInstagramCarousel(
     );
   }
 
-  const childIds = [];
+
+  // ======================================
+  // ★変更点
+  //
+  // 以前：
+  // 1枚作る
+  // → FINISHED待ち
+  // → 次の1枚
+  //
+  // 今回：
+  // 全画像をPromise.allで同時進行
+  // ======================================
+
+  const childIds =
+    await Promise.all(
+
+      images.map(
+        async (image, index) => {
+
+          if (!image?.imageBase64) {
+            throw new Error(
+              `Instagram画像${index + 1}のデータがありません`
+            );
+          }
 
 
-  // ------------------------------
-  // 1. 子コンテナ作成
-  // ------------------------------
+          // ------------------------------
+          // Blobへアップロード
+          // ★複数画像が並列で進む
+          // ------------------------------
 
-  for (
-    let i = 0;
-    i < images.length;
-    i++
-  ) {
+          const imageUrl =
+            await uploadInstagramBlob(
+              image.imageBase64,
+              image.mimeType
+            );
 
-    const image =
-      images[i];
 
-    if (!image?.imageBase64) {
-      throw new Error(
-        `Instagram画像${i + 1}のデータがありません`
-      );
-    }
+          // ------------------------------
+          // 子コンテナ作成
+          // ------------------------------
 
-    const imageUrl =
-      await uploadInstagramBlob(
-        image.imageBase64,
-        image.mimeType
-      );
+          const createUrl =
+            `${GRAPH_BASE}/${userId}/media`;
 
-    const createUrl =
-      `${GRAPH_BASE}/${userId}/media`;
+          const createBody =
+            new URLSearchParams({
+              image_url:
+                imageUrl,
 
-    const createBody =
-      new URLSearchParams({
-        image_url:
-          imageUrl,
+              is_carousel_item:
+                "true",
 
-        is_carousel_item:
-          "true",
+              access_token:
+                accessToken,
+            });
 
-        access_token:
-          accessToken,
-      });
+          const response =
+            await fetch(
+              createUrl,
+              {
+                method: "POST",
 
-    const response =
-      await fetch(
-        createUrl,
-        {
-          method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/x-www-form-urlencoded",
+                },
 
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded",
-          },
+                body:
+                  createBody.toString(),
+              }
+            );
 
-          body:
-            createBody.toString(),
+          const data =
+            await response.json();
+
+          console.log(
+            `Instagram carousel child ${index + 1}:`,
+            response.status,
+            data
+          );
+
+          if (
+            !response.ok ||
+            !data.id
+          ) {
+            throw new Error(
+              `Instagramカルーセル画像${index + 1}作成失敗: ` +
+              JSON.stringify(data)
+            );
+          }
+
+
+          // ------------------------------
+          // ★各画像が同時にREADY待ち
+          // ------------------------------
+
+          await waitForInstagramReady(
+            data.id,
+            accessToken,
+            `child-${index + 1}`
+          );
+
+
+          /*
+            Promise.allは
+            mapの元の順番で結果を返す。
+
+            つまり、
+            3枚目が先に完成しても
+            childIdsの画像順は崩れない。
+          */
+
+          return data.id;
         }
-      );
-
-    const data =
-      await response.json();
-
-    console.log(
-      `Instagram carousel child ${i + 1}:`,
-      response.status,
-      data
+      )
     );
 
-    if (
-      !response.ok ||
-      !data.id
-    ) {
-      throw new Error(
-        `Instagramカルーセル画像${i + 1}作成失敗: ` +
-        JSON.stringify(data)
-      );
-    }
 
-    await waitForInstagramReady(
-      data.id,
-      accessToken,
-      `child-${i + 1}`
-    );
-
-    childIds.push(
-      data.id
-    );
-  }
+  console.log(
+    "Instagram all children ready:",
+    childIds
+  );
 
 
   // ------------------------------
