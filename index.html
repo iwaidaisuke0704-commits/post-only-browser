@@ -138,11 +138,6 @@
       padding:14px
     }
 
-
-    /* =====================================
-       投稿タイミング
-    ===================================== */
-
     .timing{
       margin:14px 0;
       border:1px solid #ddd;
@@ -172,11 +167,6 @@
       cursor:pointer
     }
 
-
-    /* =====================================
-       予約日時
-    ===================================== */
-
     #scheduleBox{
       display:none;
       margin-top:14px
@@ -189,11 +179,6 @@
       font-weight:800
     }
 
-
-    /*
-      見えるのはこのボタンだけ
-    */
-
     #scheduleButton{
       width:100%;
       min-height:58px;
@@ -201,19 +186,14 @@
       align-items:center;
       justify-content:space-between;
       gap:12px;
-
       padding:14px 16px;
-
       border:1px solid #ddd;
       border-radius:12px;
-
       background:#fff;
       color:#555;
-
       font:inherit;
       font-size:16px;
       font-weight:750;
-
       text-align:left;
       cursor:pointer
     }
@@ -235,15 +215,6 @@
       line-height:1
     }
 
-
-    /*
-      本物のdatetime-local。
-
-      画面上には表示しない。
-
-      JavaScriptから日時ピッカーを開く。
-    */
-
     #scheduleAt{
       position:absolute;
       width:1px;
@@ -251,11 +222,6 @@
       opacity:0;
       pointer-events:none
     }
-
-
-    /* =====================================
-       投稿ボタン
-    ===================================== */
 
     #send{
       width:100%;
@@ -427,10 +393,6 @@
         予約日時
       </div>
 
-      <!--
-        ユーザーが実際に押すボタン
-      -->
-
       <button
         id="scheduleButton"
         type="button"
@@ -449,10 +411,6 @@
 
       </button>
 
-
-      <!--
-        本物の日時入力
-      -->
 
       <input
         id="scheduleAt"
@@ -608,18 +566,7 @@ updateMinimumScheduleTime();
 
 scheduleButton.onclick = () => {
 
-  /*
-    押すたびに
-    最小日時を現在時刻へ更新
-  */
-
   updateMinimumScheduleTime();
-
-
-  /*
-    対応ブラウザなら
-    showPickerで開く
-  */
 
   if (
     typeof scheduleAt.showPicker ===
@@ -631,19 +578,13 @@ scheduleButton.onclick = () => {
     return;
   }
 
-
-  /*
-    iPhone等でshowPickerが
-    使えない場合のフォールバック
-  */
-
   scheduleAt.focus();
   scheduleAt.click();
 };
 
 
 /* ========================================
-   日時が決まったらボタン表示変更
+   日時表示
 ======================================== */
 
 function updateScheduleButton() {
@@ -706,7 +647,6 @@ function updateScheduleButton() {
 
   scheduleButtonText.textContent =
     `📅 ${year}/${month}/${day} ${hour}:${minute}`;
-
 
   scheduleButton.classList.add(
     "selected"
@@ -1072,6 +1012,10 @@ send.onclick = async () => {
     [...selectedFiles];
 
 
+  /* ======================================
+     基本チェック
+  ====================================== */
+
   if (!text) {
 
     status.textContent =
@@ -1130,8 +1074,12 @@ send.onclick = async () => {
 
 
   /* ======================================
-     予約
+     予約日時チェック
   ====================================== */
+
+  let scheduledDate =
+    null;
+
 
   if (postLater.checked) {
 
@@ -1144,7 +1092,7 @@ send.onclick = async () => {
     }
 
 
-    const scheduledDate =
+    scheduledDate =
       new Date(
         scheduleAt.value
       );
@@ -1173,22 +1121,11 @@ send.onclick = async () => {
 
       return;
     }
-
-
-    /*
-      現段階ではまだ
-      サーバー予約処理未接続
-    */
-
-    status.textContent =
-      "予約日時OK。次にサーバー側を接続します";
-
-    return;
   }
 
 
   /* ======================================
-     今すぐ投稿
+     ボタン停止
   ====================================== */
 
   send.disabled =
@@ -1207,6 +1144,11 @@ send.onclick = async () => {
 
   try {
 
+    /*
+      今すぐ投稿でも予約でも
+      同じbodyを作る
+    */
+
     const body = {
 
       caption:
@@ -1224,7 +1166,9 @@ send.onclick = async () => {
     };
 
 
-    /* X */
+    /* ====================================
+       X画像準備
+    ==================================== */
 
     if (
       toX.checked &&
@@ -1244,7 +1188,9 @@ send.onclick = async () => {
         body.xImages.push({
 
           imageBase64:
-            await b64(files[i]),
+            await b64(
+              files[i]
+            ),
 
           mimeType:
             files[i].type ||
@@ -1254,7 +1200,9 @@ send.onclick = async () => {
     }
 
 
-    /* Instagram */
+    /* ====================================
+       Instagram画像準備
+    ==================================== */
 
     if (
       toIg.checked &&
@@ -1284,7 +1232,9 @@ send.onclick = async () => {
     }
 
 
-    /* 旧形式互換 */
+    /* ====================================
+       旧1枚形式との互換性
+    ==================================== */
 
     if (
       body.xImages.length
@@ -1312,23 +1262,68 @@ send.onclick = async () => {
     }
 
 
-    status.textContent =
-      "投稿中…";
+    /* ====================================
+       ★今すぐ / 予約を分岐
+    ==================================== */
 
+    let endpoint;
+
+
+    if (postLater.checked) {
+
+      /*
+        datetime-localは
+        タイムゾーン情報を持っていない。
+
+        Dateへ変換してからISO化して
+        サーバーへ送ることで、
+        実際の瞬間を保存する。
+      */
+
+      body.scheduleAt =
+        scheduledDate.toISOString();
+
+
+      endpoint =
+        "/api/schedule";
+
+
+      status.textContent =
+        "予約を保存しています…";
+
+    } else {
+
+      endpoint =
+        "/api/publish";
+
+
+      status.textContent =
+        "投稿中…";
+    }
+
+
+    /* ====================================
+       API送信
+    ==================================== */
 
     const r =
       await fetch(
-        "/api/publish",
+        endpoint,
         {
-          method:"POST",
 
-          headers:{
+          method:
+            "POST",
+
+          headers: {
+
             "Content-Type":
               "application/json"
           },
 
           body:
-            JSON.stringify(body)
+            JSON.stringify(
+              body
+            )
         }
       );
 
@@ -1350,29 +1345,51 @@ send.onclick = async () => {
 
 
     console.log(
-      "publish response:",
+      postLater.checked
+        ? "schedule response:"
+        : "publish response:",
       j
     );
 
 
-    if (j.ok) {
+    /* ====================================
+       エラー
+    ==================================== */
+
+    if (
+      !r.ok ||
+      !j.ok
+    ) {
+
+      throw new Error(
+        j.errors?.instagram ||
+        j.errors?.x ||
+        j.error ||
+        "処理できませんでした"
+      );
+    }
+
+
+    /* ====================================
+       成功
+    ==================================== */
+
+    if (postLater.checked) {
 
       status.textContent =
-        "✓ 投稿しました";
+        "✓ 投稿を予約しました";
 
     } else {
 
       status.textContent =
-        j.errors?.instagram ||
-        j.errors?.x ||
-        j.error ||
-        "投稿できませんでした";
+        "✓ 投稿しました";
     }
 
 
   } catch (e) {
 
     console.error(e);
+
 
     status.textContent =
       e?.message ||
@@ -1387,22 +1404,4 @@ send.onclick = async () => {
     addImages.disabled =
       false;
 
-    clearImages.disabled =
-      false;
-  }
-};
-
-
-/* ========================================
-   初期化
-======================================== */
-
-renderPreview();
-updateTimingUI();
-updateScheduleButton();
-
-</script>
-
-</main>
-</body>
-</html>
+    clearImag
