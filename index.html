@@ -30,14 +30,27 @@
       border:2px dashed #bbb;
       border-radius:20px;
       overflow:hidden;
-      font-weight:800
+      font-weight:800;
+      padding:12px
     }
 
-    .pick img{
+    #pickText{
+      padding:40px 10px
+    }
+
+    #previews{
       display:none;
       width:100%;
-      max-height:360px;
-      object-fit:contain
+      grid-template-columns:1fr 1fr;
+      gap:8px
+    }
+
+    #previews img{
+      width:100%;
+      aspect-ratio:4/5;
+      object-fit:contain;
+      background:#fff;
+      border-radius:10px
     }
 
     textarea{
@@ -100,26 +113,48 @@
   <p class="sub">見る機能はありません。投稿するだけ。</p>
 
   <label class="pick">
-    <input id="file" type="file" accept="image/*" hidden>
-    <span id="pickText">画像を選ぶ</span>
-    <img id="preview">
+    <input
+      id="file"
+      type="file"
+      accept="image/*"
+      multiple
+      hidden
+    >
+
+    <span id="pickText">
+      画像を選ぶ（最大4枚）
+    </span>
+
+    <div id="previews"></div>
   </label>
 
-  <textarea id="caption" placeholder="投稿文"></textarea>
+  <textarea
+    id="caption"
+    placeholder="投稿文"
+  ></textarea>
 
   <div class="targets">
     <label>
-      <input id="toX" type="checkbox" checked>
+      <input
+        id="toX"
+        type="checkbox"
+        checked
+      >
       X
     </label>
 
     <label>
-      <input id="toIg" type="checkbox">
+      <input
+        id="toIg"
+        type="checkbox"
+      >
       Instagram
     </label>
   </div>
 
-  <button id="send">投稿する</button>
+  <button id="send">
+    投稿する
+  </button>
 
   <div id="status"></div>
 
@@ -127,56 +162,122 @@
     タイムライン・通知・いいね・コメントは取得しません。
   </div>
 
+
 <script>
-const file = document.querySelector("#file");
-const preview = document.querySelector("#preview");
-const pickText = document.querySelector("#pickText");
-const caption = document.querySelector("#caption");
-const toX = document.querySelector("#toX");
-const toIg = document.querySelector("#toIg");
-const send = document.querySelector("#send");
-const status = document.querySelector("#status");
+const file =
+  document.querySelector("#file");
+
+const previews =
+  document.querySelector("#previews");
+
+const pickText =
+  document.querySelector("#pickText");
+
+const caption =
+  document.querySelector("#caption");
+
+const toX =
+  document.querySelector("#toX");
+
+const toIg =
+  document.querySelector("#toIg");
+
+const send =
+  document.querySelector("#send");
+
+const status =
+  document.querySelector("#status");
+
 
 file.onchange = () => {
-  if (!file.files[0]) return;
 
-  preview.src = URL.createObjectURL(file.files[0]);
-  preview.style.display = "block";
+  const files =
+    Array.from(file.files || []);
+
+  if (!files.length) {
+    previews.innerHTML = "";
+    previews.style.display = "none";
+    pickText.style.display = "block";
+    return;
+  }
+
+  if (files.length > 4) {
+    status.textContent =
+      "画像は最大4枚までです";
+
+    file.value = "";
+    previews.innerHTML = "";
+    previews.style.display = "none";
+    pickText.style.display = "block";
+    return;
+  }
+
+  previews.innerHTML = "";
+
+  files.forEach((f) => {
+
+    const img =
+      document.createElement("img");
+
+    img.src =
+      URL.createObjectURL(f);
+
+    previews.appendChild(img);
+  });
+
+  previews.style.display = "grid";
   pickText.style.display = "none";
+
+  status.textContent =
+    `${files.length}枚選択しました`;
 };
 
+
 function b64(f) {
+
   return new Promise((res, rej) => {
+
     const r = new FileReader();
 
     r.onload = () =>
-      res(String(r.result).split(",")[1]);
+      res(
+        String(r.result)
+          .split(",")[1]
+      );
 
     r.onerror = rej;
+
     r.readAsDataURL(f);
   });
 }
 
 
-// Instagram用
-// 元画像を一切切らずに
-// 1080 × 1350 の白いキャンバスへ収める
+// Instagram用画像を作る。
+// 元画像は一切トリミングしない。
+// 1080 × 1350 の白背景へ収める。
 async function makeInstagramImage(file) {
 
-  const bitmap = await createImageBitmap(file);
+  const bitmap =
+    await createImageBitmap(file);
 
-  const canvas = document.createElement("canvas");
+  const canvas =
+    document.createElement("canvas");
 
   const targetWidth = 1080;
   const targetHeight = 1350;
 
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
+  canvas.width =
+    targetWidth;
 
-  const ctx = canvas.getContext("2d");
+  canvas.height =
+    targetHeight;
 
-  // 背景を白にする
-  ctx.fillStyle = "#ffffff";
+  const ctx =
+    canvas.getContext("2d");
+
+  ctx.fillStyle =
+    "#ffffff";
+
   ctx.fillRect(
     0,
     0,
@@ -184,24 +285,32 @@ async function makeInstagramImage(file) {
     targetHeight
   );
 
-  const scale = Math.min(
-    targetWidth / bitmap.width,
-    targetHeight / bitmap.height
-  );
+  const scale =
+    Math.min(
+      targetWidth / bitmap.width,
+      targetHeight / bitmap.height
+    );
 
   const drawWidth =
-    Math.round(bitmap.width * scale);
+    Math.round(
+      bitmap.width * scale
+    );
 
   const drawHeight =
-    Math.round(bitmap.height * scale);
+    Math.round(
+      bitmap.height * scale
+    );
 
   const x =
-    Math.round((targetWidth - drawWidth) / 2);
+    Math.round(
+      (targetWidth - drawWidth) / 2
+    );
 
   const y =
-    Math.round((targetHeight - drawHeight) / 2);
+    Math.round(
+      (targetHeight - drawHeight) / 2
+    );
 
-  // 元画像を縦横比そのままで中央配置
   ctx.drawImage(
     bitmap,
     x,
@@ -212,20 +321,31 @@ async function makeInstagramImage(file) {
 
   bitmap.close();
 
-  // JPEG化＋軽く圧縮
   const dataUrl =
-    canvas.toDataURL("image/jpeg", 0.92);
+    canvas.toDataURL(
+      "image/jpeg",
+      0.92
+    );
 
   return {
-    imageBase64: dataUrl.split(",")[1],
-    mimeType: "image/jpeg"
+    imageBase64:
+      dataUrl.split(",")[1],
+
+    mimeType:
+      "image/jpeg"
   };
 }
 
 
 send.onclick = async () => {
 
-  const text = caption.value.trim();
+  const text =
+    caption.value.trim();
+
+  const files =
+    Array.from(
+      file.files || []
+    );
 
   if (!text) {
     status.textContent =
@@ -233,22 +353,31 @@ send.onclick = async () => {
     return;
   }
 
-  if (!toX.checked && !toIg.checked) {
+  if (
+    !toX.checked &&
+    !toIg.checked
+  ) {
     status.textContent =
       "投稿先を選んでください";
     return;
   }
 
-  const f = file.files[0];
+  if (files.length > 4) {
+    status.textContent =
+      "画像は最大4枚までです";
+    return;
+  }
 
-  if (toIg.checked && !f) {
+  if (
+    toIg.checked &&
+    files.length === 0
+  ) {
     status.textContent =
       "Instagram投稿には画像が必要です";
     return;
   }
 
   send.disabled = true;
-  status.textContent = "投稿中…";
 
   try {
 
@@ -259,51 +388,90 @@ send.onclick = async () => {
     };
 
 
-    if (f) {
+    // Instagramの場合
+    // 選択した画像を全部4:5へ整形する
+    if (toIg.checked) {
 
-      // Instagramを選択している場合
-      // 4:5画像へ自動変換
-      if (toIg.checked) {
+      status.textContent =
+        "Instagram用に画像を整えています…";
+
+      const instagramImages = [];
+
+      for (
+        let i = 0;
+        i < files.length;
+        i++
+      ) {
 
         status.textContent =
-          "Instagram用に画像を整えています…";
+          `Instagram用画像を整えています… ${i + 1}/${files.length}`;
 
-        const instagramImage =
-          await makeInstagramImage(f);
+        const converted =
+          await makeInstagramImage(
+            files[i]
+          );
 
-        body.imageBase64 =
-          instagramImage.imageBase64;
-
-        body.mimeType =
-          instagramImage.mimeType;
-
-      } else {
-
-        // Xだけの場合は元画像のまま
-        body.imageBase64 =
-          await b64(f);
-
-        body.mimeType =
-          f.type || "image/jpeg";
+        instagramImages.push(
+          converted
+        );
       }
+
+      // 新しい4枚対応データ
+      body.instagramImages =
+        instagramImages;
+
+
+      // 1枚投稿との互換性も残す
+      if (
+        instagramImages.length === 1
+      ) {
+
+        body.imageBase64 =
+          instagramImages[0]
+            .imageBase64;
+
+        body.mimeType =
+          instagramImages[0]
+            .mimeType;
+      }
+
+    } else if (files.length) {
+
+      // Xだけの場合は、
+      // 今のpublish.mjsとの互換性を守るため
+      // とりあえず1枚目を今まで通り送る。
+      body.imageBase64 =
+        await b64(files[0]);
+
+      body.mimeType =
+        files[0].type ||
+        "image/jpeg";
     }
 
 
-    status.textContent = "投稿中…";
-
-    const r = await fetch("/api/publish", {
-      method: "POST",
-
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body: JSON.stringify(body)
-    });
+    status.textContent =
+      "投稿中…";
 
 
-    const j = await r.json();
+    const r =
+      await fetch(
+        "/api/publish",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify(body)
+        }
+      );
+
+
+    const j =
+      await r.json();
 
 
     if (j.ok) {
