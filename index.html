@@ -179,6 +179,18 @@
       margin-top:12px
     }
 
+    /*
+      ★追加
+      日時欄が空でも何の入力欄か分かるようにする
+    */
+
+    .scheduleLabel{
+      margin-bottom:8px;
+      color:#666;
+      font-size:13px;
+      font-weight:700
+    }
+
     #scheduleAt{
       width:100%;
       border:1px solid #ddd;
@@ -362,6 +374,11 @@
 
 
     <div id="scheduleBox">
+
+      <!-- ★追加 -->
+      <div class="scheduleLabel">
+        予約日時を選択
+      </div>
 
       <input
         id="scheduleAt"
