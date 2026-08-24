@@ -138,10 +138,6 @@
       padding:14px
     }
 
-    /* =====================================
-       投稿タイミング
-    ===================================== */
-
     .timing{
       margin:14px 0;
       border:1px solid #ddd;
@@ -170,10 +166,6 @@
       border-radius:12px;
       cursor:pointer
     }
-
-    /* =====================================
-       予約日時
-    ===================================== */
 
     #scheduleBox{
       display:none;
@@ -223,14 +215,6 @@
       line-height:1
     }
 
-    /*
-      本物のdatetime-local。
-
-      完全にdisplay:noneにはしない。
-      ブラウザによってshowPickerが
-      動かなくなるのを避ける。
-    */
-
     #scheduleAt{
       position:fixed;
       left:-10000px;
@@ -241,10 +225,6 @@
       border:0;
       padding:0
     }
-
-    /* =====================================
-       投稿ボタン
-    ===================================== */
 
     #send{
       width:100%;
@@ -297,10 +277,6 @@
     見る機能はありません。投稿するだけ。
   </p>
 
-  <!-- ===================================
-       画像
-  ==================================== -->
-
   <label class="pick">
 
     <input
@@ -322,41 +298,24 @@
 
   </label>
 
-  <div
-    id="imageTools"
-    class="imageTools"
-  >
+  <div id="imageTools" class="imageTools">
 
     <span id="imageCount"></span>
 
-    <button
-      id="addImages"
-      type="button"
-    >
+    <button id="addImages" type="button">
       ＋ 画像を追加
     </button>
 
-    <button
-      id="clearImages"
-      type="button"
-    >
+    <button id="clearImages" type="button">
       全部消す
     </button>
 
   </div>
 
-  <!-- ===================================
-       投稿文
-  ==================================== -->
-
   <textarea
     id="caption"
     placeholder="投稿文"
   ></textarea>
-
-  <!-- ===================================
-       投稿先
-  ==================================== -->
 
   <div class="targets">
 
@@ -378,10 +337,6 @@
     </label>
 
   </div>
-
-  <!-- ===================================
-       投稿タイミング
-  ==================================== -->
 
   <div class="timing">
 
@@ -446,10 +401,6 @@
 
   </div>
 
-  <!-- ===================================
-       投稿ボタン
-  ==================================== -->
-
   <button id="send">
     投稿する
   </button>
@@ -464,88 +415,7 @@
 <script>
 
 /* ========================================
-   エラー表示
-======================================== */
-
-function showError(message) {
-
-  const el =
-    document.querySelector("#status");
-
-  if (!el) {
-    alert(message);
-    return;
-  }
-
-  el.classList.add("error");
-
-  el.textContent =
-    message;
-}
-
-
-function clearErrorStyle() {
-
-  const el =
-    document.querySelector("#status");
-
-  if (el) {
-    el.classList.remove("error");
-  }
-}
-
-
-window.addEventListener(
-  "error",
-  (event) => {
-
-    console.error(
-      "JavaScript Error:",
-      event.error || event
-    );
-
-    const line =
-      event.lineno
-        ? ` / 行:${event.lineno}`
-        : "";
-
-    const column =
-      event.colno
-        ? `:${event.colno}`
-        : "";
-
-    showError(
-      `JSエラー: ${event.message || "不明なエラー"}${line}${column}`
-    );
-  }
-);
-
-
-window.addEventListener(
-  "unhandledrejection",
-  (event) => {
-
-    console.error(
-      "Unhandled Promise Rejection:",
-      event.reason
-    );
-
-    const reason =
-      event.reason?.message ||
-      String(
-        event.reason ||
-        "不明なエラー"
-      );
-
-    showError(
-      `Promiseエラー: ${reason}`
-    );
-  }
-);
-
-
-/* ========================================
-   DOM取得
+   DOM
 ======================================== */
 
 const file =
@@ -604,212 +474,30 @@ const scheduleAt =
 
 
 /* ========================================
-   現在選択中の画像
+   ステータス
+======================================== */
+
+function showError(message) {
+  status.classList.add("error");
+  status.textContent = message;
+}
+
+function clearStatus() {
+  status.classList.remove("error");
+  status.textContent = "";
+}
+
+
+/* ========================================
+   画像
 ======================================== */
 
 let selectedFiles = [];
 
 
-/* ========================================
-   予約UI
-======================================== */
-
-function updateTimingUI() {
-
-  if (postLater.checked) {
-
-    scheduleBox.style.display =
-      "block";
-
-    send.textContent =
-      "投稿を予約する";
-
-  } else {
-
-    scheduleBox.style.display =
-      "none";
-
-    send.textContent =
-      "投稿する";
-  }
-}
-
-
-postNow.addEventListener(
-  "change",
-  updateTimingUI
-);
-
-postLater.addEventListener(
-  "change",
-  updateTimingUI
-);
-
-
-/* ========================================
-   予約日時 最小値
-======================================== */
-
-function updateMinimumScheduleTime() {
-
-  const now =
-    new Date();
-
-  const local =
-    new Date(
-      now.getTime() -
-      now.getTimezoneOffset() *
-      60000
-    );
-
-  scheduleAt.min =
-    local
-      .toISOString()
-      .slice(0,16);
-}
-
-
-updateMinimumScheduleTime();
-
-
-/* ========================================
-   日時選択ボタン
-======================================== */
-
-scheduleButton.addEventListener(
-  "click",
-  () => {
-
-    clearErrorStyle();
-
-    updateMinimumScheduleTime();
-
-    try {
-
-      if (
-        typeof scheduleAt.showPicker ===
-        "function"
-      ) {
-
-        scheduleAt.showPicker();
-
-        return;
-      }
-
-    } catch (error) {
-
-      console.log(
-        "showPicker fallback:",
-        error
-      );
-    }
-
-    /*
-      showPicker非対応ブラウザ用
-    */
-
-    scheduleAt.focus();
-
-    scheduleAt.click();
-  }
-);
-
-
-/* ========================================
-   日時表示
-======================================== */
-
-function updateScheduleButton() {
-
-  if (!scheduleAt.value) {
-
-    scheduleButtonText.textContent =
-      "📅 日時を選ぶ";
-
-    scheduleButton.classList.remove(
-      "selected"
-    );
-
-    return;
-  }
-
-
-  const date =
-    new Date(
-      scheduleAt.value
-    );
-
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-
-    scheduleButtonText.textContent =
-      "📅 日時を選ぶ";
-
-    scheduleButton.classList.remove(
-      "selected"
-    );
-
-    return;
-  }
-
-
-  const year =
-    date.getFullYear();
-
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(2,"0");
-
-  const day =
-    String(
-      date.getDate()
-    ).padStart(2,"0");
-
-  const hour =
-    String(
-      date.getHours()
-    ).padStart(2,"0");
-
-  const minute =
-    String(
-      date.getMinutes()
-    ).padStart(2,"0");
-
-
-  scheduleButtonText.textContent =
-    `📅 ${year}/${month}/${day} ${hour}:${minute}`;
-
-
-  scheduleButton.classList.add(
-    "selected"
-  );
-}
-
-
-scheduleAt.addEventListener(
-  "change",
-  updateScheduleButton
-);
-
-scheduleAt.addEventListener(
-  "input",
-  updateScheduleButton
-);
-
-
-/* ========================================
-   プレビュー
-======================================== */
-
 function renderPreview() {
 
   preview.innerHTML = "";
-
 
   if (!selectedFiles.length) {
 
@@ -824,7 +512,6 @@ function renderPreview() {
 
     return;
   }
-
 
   pickText.style.display =
     "none";
@@ -855,20 +542,13 @@ function renderPreview() {
       img.src =
         objectUrl;
 
-
       img.onload = () => {
-
-        URL.revokeObjectURL(
-          objectUrl
-        );
+        URL.revokeObjectURL(objectUrl);
       };
-
 
       img.onerror = () => {
 
-        URL.revokeObjectURL(
-          objectUrl
-        );
+        URL.revokeObjectURL(objectUrl);
 
         showError(
           `画像${index + 1}のプレビューを表示できませんでした`
@@ -907,34 +587,53 @@ function renderPreview() {
           );
 
           renderPreview();
-
-          clearErrorStyle();
-
-          status.textContent =
-            "";
+          clearStatus();
         }
       );
 
 
-      item.appendChild(
-        img
-      );
+      item.appendChild(img);
+      item.appendChild(remove);
 
-      item.appendChild(
-        remove
-      );
-
-      preview.appendChild(
-        item
-      );
+      preview.appendChild(item);
     }
   );
 }
 
 
-/* ========================================
-   画像追加
-======================================== */
+file.addEventListener(
+  "change",
+  () => {
+
+    clearStatus();
+
+    const newFiles =
+      Array.from(file.files || []);
+
+    if (!newFiles.length) {
+      return;
+    }
+
+    selectedFiles = [
+      ...selectedFiles,
+      ...newFiles
+    ];
+
+    if (selectedFiles.length > 10) {
+
+      selectedFiles =
+        selectedFiles.slice(0,10);
+
+      status.textContent =
+        "画像は最大10枚までです";
+    }
+
+    renderPreview();
+
+    file.value = "";
+  }
+);
+
 
 addImages.addEventListener(
   "click",
@@ -948,69 +647,6 @@ addImages.addEventListener(
 );
 
 
-/* ========================================
-   画像選択
-======================================== */
-
-file.addEventListener(
-  "change",
-  () => {
-
-    clearErrorStyle();
-
-    const newFiles =
-      Array.from(
-        file.files || []
-      );
-
-
-    if (!newFiles.length) {
-      return;
-    }
-
-
-    selectedFiles = [
-      ...selectedFiles,
-      ...newFiles
-    ];
-
-
-    if (
-      selectedFiles.length > 10
-    ) {
-
-      selectedFiles =
-        selectedFiles.slice(
-          0,
-          10
-        );
-
-      status.textContent =
-        "画像は最大10枚までです";
-
-    } else {
-
-      status.textContent =
-        "";
-    }
-
-
-    renderPreview();
-
-    /*
-      同じ画像をもう一度
-      選択可能にする
-    */
-
-    file.value = "";
-  }
-);
-
-
-/* ========================================
-   全画像削除
-======================================== */
-
 clearImages.addEventListener(
   "click",
   (e) => {
@@ -1019,16 +655,167 @@ clearImages.addEventListener(
     e.stopPropagation();
 
     selectedFiles = [];
-
     file.value = "";
 
     renderPreview();
-
-    clearErrorStyle();
-
-    status.textContent =
-      "";
+    clearStatus();
   }
+);
+
+
+/* ========================================
+   投稿タイミング
+======================================== */
+
+function updateTimingUI() {
+
+  if (postLater.checked) {
+
+    scheduleBox.style.display =
+      "block";
+
+    send.textContent =
+      "投稿を予約する";
+
+  } else {
+
+    scheduleBox.style.display =
+      "none";
+
+    send.textContent =
+      "投稿する";
+  }
+}
+
+
+postNow.addEventListener(
+  "change",
+  updateTimingUI
+);
+
+postLater.addEventListener(
+  "change",
+  updateTimingUI
+);
+
+
+/* ========================================
+   予約日時
+======================================== */
+
+function updateMinimumScheduleTime() {
+
+  const now =
+    new Date();
+
+  const local =
+    new Date(
+      now.getTime() -
+      now.getTimezoneOffset() * 60000
+    );
+
+  scheduleAt.min =
+    local.toISOString().slice(0,16);
+}
+
+
+function updateScheduleButton() {
+
+  if (!scheduleAt.value) {
+
+    scheduleButtonText.textContent =
+      "📅 日時を選ぶ";
+
+    scheduleButton.classList.remove(
+      "selected"
+    );
+
+    return;
+  }
+
+  const date =
+    new Date(scheduleAt.value);
+
+  if (Number.isNaN(date.getTime())) {
+
+    scheduleButtonText.textContent =
+      "📅 日時を選ぶ";
+
+    scheduleButton.classList.remove(
+      "selected"
+    );
+
+    return;
+  }
+
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(date.getMonth() + 1)
+      .padStart(2,"0");
+
+  const day =
+    String(date.getDate())
+      .padStart(2,"0");
+
+  const hour =
+    String(date.getHours())
+      .padStart(2,"0");
+
+  const minute =
+    String(date.getMinutes())
+      .padStart(2,"0");
+
+  scheduleButtonText.textContent =
+    `📅 ${year}/${month}/${day} ${hour}:${minute}`;
+
+  scheduleButton.classList.add(
+    "selected"
+  );
+}
+
+
+scheduleButton.addEventListener(
+  "click",
+  () => {
+
+    clearStatus();
+    updateMinimumScheduleTime();
+
+    try {
+
+      if (
+        typeof scheduleAt.showPicker ===
+        "function"
+      ) {
+
+        scheduleAt.showPicker();
+        return;
+      }
+
+    } catch (error) {
+
+      console.log(
+        "showPicker fallback:",
+        error
+      );
+    }
+
+    scheduleAt.focus();
+    scheduleAt.click();
+  }
+);
+
+
+scheduleAt.addEventListener(
+  "change",
+  updateScheduleButton
+);
+
+scheduleAt.addEventListener(
+  "input",
+  updateScheduleButton
 );
 
 
@@ -1044,13 +831,10 @@ function b64(f) {
       const reader =
         new FileReader();
 
-
       reader.onload = () => {
 
         const result =
-          String(
-            reader.result
-          );
+          String(reader.result);
 
         const commaIndex =
           result.indexOf(",");
@@ -1067,12 +851,9 @@ function b64(f) {
         }
 
         resolve(
-          result.slice(
-            commaIndex + 1
-          )
+          result.slice(commaIndex + 1)
         );
       };
-
 
       reader.onerror = () => {
 
@@ -1082,34 +863,25 @@ function b64(f) {
             "画像の読み込みに失敗しました"
           )
         );
+
       };
 
-
-      reader.readAsDataURL(
-        f
-      );
+      reader.readAsDataURL(f);
     }
   );
 }
 
-
 /* ========================================
-   Instagram画像生成
+   Instagram用画像
 ======================================== */
 
 async function makeInstagramImage(f) {
 
   const bitmap =
-    await createImageBitmap(
-      f
-    );
-
+    await createImageBitmap(f);
 
   const canvas =
-    document.createElement(
-      "canvas"
-    );
-
+    document.createElement("canvas");
 
   const targetWidth =
     1080;
@@ -1117,17 +889,14 @@ async function makeInstagramImage(f) {
   const targetHeight =
     1350;
 
-
   canvas.width =
     targetWidth;
 
   canvas.height =
     targetHeight;
 
-
   const ctx =
     canvas.getContext("2d");
-
 
   if (!ctx) {
 
@@ -1138,10 +907,8 @@ async function makeInstagramImage(f) {
     );
   }
 
-
   ctx.fillStyle =
     "#ffffff";
-
 
   ctx.fillRect(
     0,
@@ -1150,49 +917,31 @@ async function makeInstagramImage(f) {
     targetHeight
   );
 
-
   const scale =
     Math.min(
-
-      targetWidth /
-        bitmap.width,
-
-      targetHeight /
-        bitmap.height
+      targetWidth / bitmap.width,
+      targetHeight / bitmap.height
     );
-
 
   const drawWidth =
     Math.round(
-      bitmap.width *
-      scale
+      bitmap.width * scale
     );
-
 
   const drawHeight =
     Math.round(
-      bitmap.height *
-      scale
+      bitmap.height * scale
     );
-
 
   const x =
     Math.round(
-      (
-        targetWidth -
-        drawWidth
-      ) / 2
+      (targetWidth - drawWidth) / 2
     );
-
 
   const y =
     Math.round(
-      (
-        targetHeight -
-        drawHeight
-      ) / 2
+      (targetHeight - drawHeight) / 2
     );
-
 
   ctx.drawImage(
     bitmap,
@@ -1202,16 +951,13 @@ async function makeInstagramImage(f) {
     drawHeight
   );
 
-
   bitmap.close();
-
 
   const dataUrl =
     canvas.toDataURL(
       "image/jpeg",
       0.92
     );
-
 
   return {
 
@@ -1232,16 +978,18 @@ send.addEventListener(
   "click",
   async () => {
 
-    clearErrorStyle();
-
+    clearStatus();
 
     const text =
       caption.value.trim();
 
-
     const files =
       [...selectedFiles];
 
+
+    /* ====================================
+       基本チェック
+    ==================================== */
 
     if (!text) {
 
@@ -1277,18 +1025,6 @@ send.addEventListener(
 
 
     if (
-      toIg.checked &&
-      files.length > 10
-    ) {
-
-      status.textContent =
-        "Instagramは最大10枚です";
-
-      return;
-    }
-
-
-    if (
       toX.checked &&
       files.length > 4
     ) {
@@ -1300,9 +1036,25 @@ send.addEventListener(
     }
 
 
+    if (
+      toIg.checked &&
+      files.length > 10
+    ) {
+
+      status.textContent =
+        "Instagramは最大10枚です";
+
+      return;
+    }
+
+
     /* ====================================
-       予約
+       予約日時チェック
     ==================================== */
+
+    let scheduledDate =
+      null;
+
 
     if (postLater.checked) {
 
@@ -1315,7 +1067,7 @@ send.addEventListener(
       }
 
 
-      const scheduledDate =
+      scheduledDate =
         new Date(
           scheduleAt.value
         );
@@ -1344,24 +1096,11 @@ send.addEventListener(
 
         return;
       }
-
-
-      /*
-        まだ予約APIには送らない。
-
-        ここまで動けば
-        フロント側の予約UIは正常。
-      */
-
-      status.textContent =
-        "✓ 予約日時OK。次にサーバー側を接続します";
-
-      return;
     }
 
 
     /* ====================================
-       今すぐ投稿
+       処理開始
     ==================================== */
 
     send.disabled =
@@ -1372,10 +1111,6 @@ send.addEventListener(
 
     clearImages.disabled =
       true;
-
-
-    status.textContent =
-      "画像を準備しています…";
 
 
     try {
@@ -1391,16 +1126,16 @@ send.addEventListener(
         instagram:
           toIg.checked,
 
-        images: [],
+        images:
+          [],
 
-        xImages: []
+        xImages:
+          []
       };
 
 
       /* ==================================
-         X画像
-
-         Promise.allで並列変換
+         X用画像
       ================================== */
 
       if (
@@ -1410,7 +1145,6 @@ send.addEventListener(
 
         status.textContent =
           `X用画像を準備中… ${files.length}枚`;
-
 
         body.xImages =
           await Promise.all(
@@ -1431,9 +1165,7 @@ send.addEventListener(
 
 
       /* ==================================
-         Instagram画像
-
-         Promise.allで並列変換
+         Instagram用画像
       ================================== */
 
       if (
@@ -1443,7 +1175,6 @@ send.addEventListener(
 
         status.textContent =
           `Instagram用画像を処理中… ${files.length}枚`;
-
 
         body.images =
           await Promise.all(
@@ -1457,55 +1188,83 @@ send.addEventListener(
 
 
       /* ==================================
-         旧形式互換
+         旧1枚形式との互換
       ================================== */
 
-      if (
-        body.xImages.length
-      ) {
+      if (body.xImages.length) {
 
         body.imageBase64 =
-          body.xImages[0]
-            .imageBase64;
+          body.xImages[0].imageBase64;
 
         body.mimeType =
-          body.xImages[0]
-            .mimeType;
+          body.xImages[0].mimeType;
 
-      } else if (
-        body.images.length
-      ) {
+      } else if (body.images.length) {
 
         body.imageBase64 =
-          body.images[0]
-            .imageBase64;
+          body.images[0].imageBase64;
 
         body.mimeType =
-          body.images[0]
-            .mimeType;
+          body.images[0].mimeType;
       }
 
 
-      status.textContent =
-        "投稿中…";
+      /* ==================================
+         今すぐ / 予約 の分岐
+      ================================== */
 
+      let endpoint;
+
+
+      if (postLater.checked) {
+
+        /*
+          datetime-local は
+          端末のローカル日時。
+
+          toISOString() にして
+          UTC時刻としてサーバーへ保存する。
+        */
+
+        body.scheduleAt =
+          scheduledDate.toISOString();
+
+        endpoint =
+          "/api/schedule";
+
+        status.textContent =
+          "予約を保存しています…";
+
+      } else {
+
+        endpoint =
+          "/api/publish";
+
+        status.textContent =
+          "投稿中…";
+      }
+
+
+      /* ==================================
+         APIへ送信
+      ================================== */
 
       const response =
         await fetch(
-          "/api/publish",
+          endpoint,
           {
+
             method:
               "POST",
 
             headers: {
+
               "Content-Type":
                 "application/json"
             },
 
             body:
-              JSON.stringify(
-                body
-              )
+              JSON.stringify(body)
           }
         );
 
@@ -1518,7 +1277,7 @@ send.addEventListener(
         result =
           await response.json();
 
-      } catch {
+      } catch (error) {
 
         throw new Error(
           `サーバー応答エラー (${response.status})`
@@ -1527,41 +1286,106 @@ send.addEventListener(
 
 
       console.log(
-        "publish response:",
+        postLater.checked
+          ? "schedule response:"
+          : "publish response:",
         result
       );
 
+
+      /* ==================================
+         成功
+      ================================== */
 
       if (
         response.ok &&
         result.ok
       ) {
 
-        status.textContent =
-          "✓ 投稿しました";
+        if (postLater.checked) {
 
-      } else {
+          status.textContent =
+            "✓ 投稿を予約しました";
 
-        throw new Error(
-          result.errors?.instagram ||
-          result.errors?.x ||
-          result.error ||
-          `投稿できませんでした (${response.status})`
-        );
+        } else {
+
+          status.textContent =
+            "✓ 投稿しました";
+        }
+
+
+        /* 投稿内容リセット */
+
+        caption.value =
+          "";
+
+        selectedFiles =
+          [];
+
+        file.value =
+          "";
+
+        renderPreview();
+
+
+        /* 予約日時リセット */
+
+        if (postLater.checked) {
+
+          scheduleAt.value =
+            "";
+
+          updateScheduleButton();
+
+          updateMinimumScheduleTime();
+        }
+
+        return;
       }
+
+
+      /* ==================================
+         APIエラー
+      ================================== */
+
+      throw new Error(
+
+        result.errors?.instagram ||
+
+        result.errors?.x ||
+
+        result.error ||
+
+        (
+          postLater.checked
+
+            ? `予約できませんでした (${response.status})`
+
+            : `投稿できませんでした (${response.status})`
+        )
+      );
 
 
     } catch (error) {
 
       console.error(
-        "Publish error:",
+        postLater.checked
+          ? "Schedule error:"
+          : "Publish error:",
         error
       );
 
 
       showError(
         error?.message ||
-        "画像処理または接続でエラーが発生しました"
+
+        (
+          postLater.checked
+
+            ? "予約処理でエラーが発生しました"
+
+            : "画像処理または接続でエラーが発生しました"
+        )
       );
 
 
@@ -1581,12 +1405,70 @@ send.addEventListener(
 
 
 /* ========================================
+   エラー監視
+======================================== */
+
+window.addEventListener(
+  "error",
+  (event) => {
+
+    console.error(
+      "JavaScript Error:",
+      event.error || event
+    );
+
+    const line =
+      event.lineno
+        ? ` / 行:${event.lineno}`
+        : "";
+
+    const column =
+      event.colno
+        ? `:${event.colno}`
+        : "";
+
+    showError(
+      `JSエラー: ${
+        event.message ||
+        "不明なエラー"
+      }${line}${column}`
+    );
+  }
+);
+
+
+window.addEventListener(
+  "unhandledrejection",
+  (event) => {
+
+    console.error(
+      "Unhandled Promise Rejection:",
+      event.reason
+    );
+
+    const reason =
+      event.reason?.message ||
+      String(
+        event.reason ||
+        "不明なエラー"
+      );
+
+    showError(
+      `Promiseエラー: ${reason}`
+    );
+  }
+);
+
+
+/* ========================================
    初期化
 ======================================== */
 
 renderPreview();
 
 updateTimingUI();
+
+updateMinimumScheduleTime();
 
 updateScheduleButton();
 
