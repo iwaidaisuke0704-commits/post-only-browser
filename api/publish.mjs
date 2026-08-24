@@ -9,6 +9,9 @@ const enc = (v) =>
     .replace(/\)/g, "%29")
     .replace(/\*/g, "%2A");
 
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
   const oauth = {
     oauth_consumer_key: ck,
@@ -77,8 +80,7 @@ async function postToX(text, imageBase64) {
           ats,
           { media_data: imageBase64 }
         ),
-        "Content-Type":
-          "application/x-www-form-urlencoded",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: form.toString(),
     });
@@ -146,14 +148,11 @@ async function postToInstagram(
   mimeType
 ) {
   if (!imageBase64) {
-    throw new Error(
-      "Instagram投稿には画像が必要です"
-    );
+    throw new Error("Instagram投稿には画像が必要です");
   }
 
   const userId = process.env.INSTAGRAM_USER_ID;
-  const accessToken =
-    process.env.INSTAGRAM_ACCESS_TOKEN;
+  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
 
   if (!userId || !accessToken) {
     throw new Error(
@@ -167,26 +166,20 @@ async function postToInstagram(
   if (type === "image/png") ext = "png";
   if (type === "image/webp") ext = "webp";
 
-  const buffer = Buffer.from(
-    imageBase64,
-    "base64"
-  );
+  const buffer = Buffer.from(imageBase64, "base64");
 
   const filename =
     `instagram/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
-  const blob = await put(
-    filename,
-    buffer,
-    {
-      access: "public",
-      contentType: type,
-      addRandomSuffix: false,
-    }
-  );
+  const blob = await put(filename, buffer, {
+    access: "public",
+    contentType: type,
+    addRandomSuffix: false,
+  });
 
   console.log("Instagram Blob URL:", blob.url);
 
+  // 1. Instagramにメディアコンテナを作成
   const createUrl =
     `https://graph.instagram.com/v24.0/${userId}/media`;
 
@@ -196,20 +189,15 @@ async function postToInstagram(
     access_token: accessToken,
   });
 
-  const createResponse = await fetch(
-    createUrl,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/x-www-form-urlencoded",
-      },
-      body: createBody.toString(),
-    }
-  );
+  const createResponse = await fetch(createUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: createBody.toString(),
+  });
 
-  const createData =
-    await createResponse.json();
+  const createData = await createResponse.json();
 
   console.log(
     "Instagram media response:",
@@ -224,28 +212,78 @@ async function postToInstagram(
     );
   }
 
+  const creationId = createData.id;
+
+  // 2. Instagram側の画像処理完了を待つ
+  let ready = false;
+  let lastStatus = null;
+
+  for (let i = 0; i < 10; i++) {
+    await sleep(2000);
+
+    const statusUrl =
+      `https://graph.instagram.com/v24.0/${creationId}` +
+      `?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`;
+
+    const statusResponse = await fetch(statusUrl);
+    const statusData = await statusResponse.json();
+
+    console.log(
+      `Instagram status check ${i + 1}:`,
+      statusResponse.status,
+      statusData
+    );
+
+    if (!statusResponse.ok) {
+      throw new Error(
+        "Instagram状態確認失敗: " +
+        JSON.stringify(statusData)
+      );
+    }
+
+    lastStatus = statusData;
+
+    if (statusData.status_code === "FINISHED") {
+      ready = true;
+      break;
+    }
+
+    if (
+      statusData.status_code === "ERROR" ||
+      statusData.status_code === "EXPIRED"
+    ) {
+      throw new Error(
+        "Instagram画像処理失敗: " +
+        JSON.stringify(statusData)
+      );
+    }
+  }
+
+  if (!ready) {
+    throw new Error(
+      "Instagram画像処理が時間内に完了しませんでした: " +
+      JSON.stringify(lastStatus)
+    );
+  }
+
+  // 3. FINISHEDになってから公開
   const publishUrl =
     `https://graph.instagram.com/v24.0/${userId}/media_publish`;
 
   const publishBody = new URLSearchParams({
-    creation_id: createData.id,
+    creation_id: creationId,
     access_token: accessToken,
   });
 
-  const publishResponse = await fetch(
-    publishUrl,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/x-www-form-urlencoded",
-      },
-      body: publishBody.toString(),
-    }
-  );
+  const publishResponse = await fetch(publishUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: publishBody.toString(),
+  });
 
-  const publishData =
-    await publishResponse.json();
+  const publishData = await publishResponse.json();
 
   console.log(
     "Instagram publish response:",
@@ -296,56 +334,40 @@ export default async function handler(req, res) {
 
     if (x) {
       try {
-        results.x = await postToX(
-          text,
-          imageBase64
-        );
+        results.x = await postToX(text, imageBase64);
       } catch (error) {
-        errors.x = String(
-          error?.message || error
-        );
+        errors.x = String(error?.message || error);
       }
     }
 
     if (instagram) {
       try {
-        results.instagram =
-          await postToInstagram(
-            text,
-            imageBase64,
-            mimeType
-          );
-      } catch (error) {
-        errors.instagram = String(
-          error?.message || error
+        results.instagram = await postToInstagram(
+          text,
+          imageBase64,
+          mimeType
         );
+      } catch (error) {
+        errors.instagram = String(error?.message || error);
       }
     }
 
-    const ok =
-      Object.keys(errors).length === 0;
+    const ok = Object.keys(errors).length === 0;
 
-    return res
-      .status(ok ? 200 : 500)
-      .json({
-        ok,
-        results,
-        errors,
-        error: ok
-          ? undefined
-          : Object.values(errors).join(" / "),
-      });
+    return res.status(ok ? 200 : 500).json({
+      ok,
+      results,
+      errors,
+      error: ok
+        ? undefined
+        : Object.values(errors).join(" / "),
+    });
 
   } catch (error) {
-    console.error(
-      "Publish error:",
-      error
-    );
+    console.error("Publish error:", error);
 
     return res.status(500).json({
-      error: String(
-        error?.message || error
-      ),
+      error: String(error?.message || error),
     });
   }
 }
