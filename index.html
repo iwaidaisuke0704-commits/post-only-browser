@@ -179,58 +179,77 @@
 
     #scheduleBox{
       display:none;
-      margin-top:12px
+      margin-top:14px
     }
+
+    #scheduleLabel{
+      margin-bottom:8px;
+      color:#666;
+      font-size:13px;
+      font-weight:800
+    }
+
 
     /*
-      実際のdatetime-localは透明にして
-      ボタン全体に重ねる
+      見えるのはこのボタンだけ
     */
 
-    .schedulePicker{
-      position:relative;
-      width:100%;
-    }
-
-    #scheduleDisplay{
+    #scheduleButton{
       width:100%;
       min-height:58px;
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:12px;
+
       padding:14px 16px;
+
       border:1px solid #ddd;
       border-radius:12px;
+
       background:#fff;
-      color:#777;
+      color:#555;
+
       font:inherit;
       font-size:16px;
-      font-weight:650;
+      font-weight:750;
+
       text-align:left;
       cursor:pointer
     }
 
-    #scheduleDisplay.hasValue{
-      color:#111
+    #scheduleButton.selected{
+      color:#111;
+      border-color:#111
     }
 
-    #scheduleDisplay::after{
-      content:"›";
-      flex:none;
-      color:#777;
-      font-size:24px;
-      line-height:1;
-      transform:rotate(90deg)
+    .scheduleButtonText{
+      display:flex;
+      align-items:center;
+      gap:9px
     }
+
+    .scheduleArrow{
+      font-size:22px;
+      color:#777;
+      line-height:1
+    }
+
+
+    /*
+      本物のdatetime-local。
+
+      画面上には表示しない。
+
+      JavaScriptから日時ピッカーを開く。
+    */
 
     #scheduleAt{
       position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
+      width:1px;
+      height:1px;
       opacity:0;
-      cursor:pointer
+      pointer-events:none
     }
 
 
@@ -402,29 +421,44 @@
     </div>
 
 
-    <!--
-      ここが修正版。
-
-      空欄ではなく
-      「予約日時を選ぶ」
-      が必ず表示される。
-    -->
-
     <div id="scheduleBox">
 
-      <div class="schedulePicker">
-
-        <div id="scheduleDisplay">
-          予約日時を選ぶ
-        </div>
-
-        <input
-          id="scheduleAt"
-          type="datetime-local"
-          aria-label="予約日時を選ぶ"
-        >
-
+      <div id="scheduleLabel">
+        予約日時
       </div>
+
+      <!--
+        ユーザーが実際に押すボタン
+      -->
+
+      <button
+        id="scheduleButton"
+        type="button"
+      >
+
+        <span
+          id="scheduleButtonText"
+          class="scheduleButtonText"
+        >
+          📅 日時を選ぶ
+        </span>
+
+        <span class="scheduleArrow">
+          ›
+        </span>
+
+      </button>
+
+
+      <!--
+        本物の日時入力
+      -->
+
+      <input
+        id="scheduleAt"
+        type="datetime-local"
+        aria-label="予約日時"
+      >
 
     </div>
 
@@ -495,11 +529,14 @@ const postLater =
 const scheduleBox =
   document.querySelector("#scheduleBox");
 
+const scheduleButton =
+  document.querySelector("#scheduleButton");
+
+const scheduleButtonText =
+  document.querySelector("#scheduleButtonText");
+
 const scheduleAt =
   document.querySelector("#scheduleAt");
-
-const scheduleDisplay =
-  document.querySelector("#scheduleDisplay");
 
 
 /* ========================================
@@ -541,9 +578,9 @@ postLater.onchange =
   updateTimingUI;
 
 
-/*
-  過去日時を選びにくくする
-*/
+/* ========================================
+   過去日時を選べないようにする
+======================================== */
 
 function updateMinimumScheduleTime() {
 
@@ -565,21 +602,59 @@ function updateMinimumScheduleTime() {
 updateMinimumScheduleTime();
 
 
-/*
-  ========================================
-  予約日時の表示更新
-  ========================================
-*/
+/* ========================================
+   日時選択ボタン
+======================================== */
 
-function updateScheduleDisplay() {
+scheduleButton.onclick = () => {
+
+  /*
+    押すたびに
+    最小日時を現在時刻へ更新
+  */
+
+  updateMinimumScheduleTime();
+
+
+  /*
+    対応ブラウザなら
+    showPickerで開く
+  */
+
+  if (
+    typeof scheduleAt.showPicker ===
+    "function"
+  ) {
+
+    scheduleAt.showPicker();
+
+    return;
+  }
+
+
+  /*
+    iPhone等でshowPickerが
+    使えない場合のフォールバック
+  */
+
+  scheduleAt.focus();
+  scheduleAt.click();
+};
+
+
+/* ========================================
+   日時が決まったらボタン表示変更
+======================================== */
+
+function updateScheduleButton() {
 
   if (!scheduleAt.value) {
 
-    scheduleDisplay.textContent =
-      "予約日時を選ぶ";
+    scheduleButtonText.textContent =
+      "📅 日時を選ぶ";
 
-    scheduleDisplay.classList.remove(
-      "hasValue"
+    scheduleButton.classList.remove(
+      "selected"
     );
 
     return;
@@ -598,51 +673,55 @@ function updateScheduleDisplay() {
     )
   ) {
 
-    scheduleDisplay.textContent =
-      "予約日時を選ぶ";
+    scheduleButtonText.textContent =
+      "📅 日時を選ぶ";
 
-    scheduleDisplay.classList.remove(
-      "hasValue"
+    scheduleButton.classList.remove(
+      "selected"
     );
 
     return;
   }
 
 
-  const formatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        year:"numeric",
-        month:"numeric",
-        day:"numeric",
-        weekday:"short",
-        hour:"2-digit",
-        minute:"2-digit"
-      }
-    );
+  const year =
+    date.getFullYear();
+
+  const month =
+    date.getMonth() + 1;
+
+  const day =
+    date.getDate();
+
+  const hour =
+    String(
+      date.getHours()
+    ).padStart(2,"0");
+
+  const minute =
+    String(
+      date.getMinutes()
+    ).padStart(2,"0");
 
 
-  scheduleDisplay.textContent =
-    formatter.format(
-      date
-    );
+  scheduleButtonText.textContent =
+    `📅 ${year}/${month}/${day} ${hour}:${minute}`;
 
 
-  scheduleDisplay.classList.add(
-    "hasValue"
+  scheduleButton.classList.add(
+    "selected"
   );
 }
 
 
 scheduleAt.addEventListener(
   "change",
-  updateScheduleDisplay
+  updateScheduleButton
 );
 
 scheduleAt.addEventListener(
   "input",
-  updateScheduleDisplay
+  updateScheduleButton
 );
 
 
@@ -720,11 +799,6 @@ function renderPreview() {
       remove.textContent =
         "×";
 
-      remove.setAttribute(
-        "aria-label",
-        `${index + 1}枚目を削除`
-      );
-
 
       remove.onclick = (e) => {
 
@@ -743,24 +817,17 @@ function renderPreview() {
       };
 
 
-      item.appendChild(
-        img
-      );
+      item.appendChild(img);
+      item.appendChild(remove);
 
-      item.appendChild(
-        remove
-      );
-
-      preview.appendChild(
-        item
-      );
+      preview.appendChild(item);
     }
   );
 }
 
 
 /* ========================================
-   ＋画像を追加
+   画像追加
 ======================================== */
 
 addImages.onclick = (e) => {
@@ -822,7 +889,7 @@ file.onchange = () => {
 
 
 /* ========================================
-   全部消す
+   全画像削除
 ======================================== */
 
 clearImages.onclick = (e) => {
@@ -857,9 +924,7 @@ function b64(f) {
       r.onload = () => {
 
         const result =
-          String(
-            r.result
-          );
+          String(r.result);
 
         res(
           result.split(",")[1]
@@ -871,9 +936,7 @@ function b64(f) {
         rej;
 
 
-      r.readAsDataURL(
-        f
-      );
+      r.readAsDataURL(f);
     }
   );
 }
@@ -883,15 +946,10 @@ function b64(f) {
    Instagram画像生成
 ======================================== */
 
-async function makeInstagramImage(
-  f
-) {
+async function makeInstagramImage(f) {
 
   const bitmap =
-    await createImageBitmap(
-      f
-    );
-
+    await createImageBitmap(f);
 
   const canvas =
     document.createElement(
@@ -914,9 +972,7 @@ async function makeInstagramImage(
 
 
   const ctx =
-    canvas.getContext(
-      "2d"
-    );
+    canvas.getContext("2d");
 
 
   ctx.fillStyle =
@@ -933,7 +989,6 @@ async function makeInstagramImage(
 
   const scale =
     Math.min(
-
       targetWidth /
         bitmap.width,
 
@@ -1075,7 +1130,7 @@ send.onclick = async () => {
 
 
   /* ======================================
-     予約日時チェック
+     予約
   ====================================== */
 
   if (postLater.checked) {
@@ -1121,12 +1176,12 @@ send.onclick = async () => {
 
 
     /*
-      まだ予約サーバー未接続。
-      次はここを/api/scheduleへ繋ぐ。
+      現段階ではまだ
+      サーバー予約処理未接続
     */
 
     status.textContent =
-      "予約UIはOK。次にサーバー側を接続します";
+      "予約日時OK。次にサーバー側を接続します";
 
     return;
   }
@@ -1169,9 +1224,7 @@ send.onclick = async () => {
     };
 
 
-    /*
-      X用画像
-    */
+    /* X */
 
     if (
       toX.checked &&
@@ -1191,9 +1244,7 @@ send.onclick = async () => {
         body.xImages.push({
 
           imageBase64:
-            await b64(
-              files[i]
-            ),
+            await b64(files[i]),
 
           mimeType:
             files[i].type ||
@@ -1203,9 +1254,7 @@ send.onclick = async () => {
     }
 
 
-    /*
-      Instagram用画像
-    */
+    /* Instagram */
 
     if (
       toIg.checked &&
@@ -1235,9 +1284,7 @@ send.onclick = async () => {
     }
 
 
-    /*
-      旧1枚形式との互換性
-    */
+    /* 旧形式互換 */
 
     if (
       body.xImages.length
@@ -1273,20 +1320,15 @@ send.onclick = async () => {
       await fetch(
         "/api/publish",
         {
+          method:"POST",
 
-          method:
-            "POST",
-
-          headers: {
-
+          headers:{
             "Content-Type":
               "application/json"
           },
 
           body:
-            JSON.stringify(
-              body
-            )
+            JSON.stringify(body)
         }
       );
 
@@ -1330,10 +1372,7 @@ send.onclick = async () => {
 
   } catch (e) {
 
-    console.error(
-      e
-    );
-
+    console.error(e);
 
     status.textContent =
       e?.message ||
@@ -1355,12 +1394,12 @@ send.onclick = async () => {
 
 
 /* ========================================
-   初期表示
+   初期化
 ======================================== */
 
 renderPreview();
 updateTimingUI();
-updateScheduleDisplay();
+updateScheduleButton();
 
 </script>
 
