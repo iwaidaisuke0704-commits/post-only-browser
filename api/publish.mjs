@@ -25,7 +25,10 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
     oauth_version: "1.0",
   };
 
-  const params = Object.entries({ ...oauth, ...bodyParams })
+  const params = Object.entries({
+    ...oauth,
+    ...bodyParams,
+  })
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${enc(k)}=${enc(v)}`)
     .join("&");
@@ -36,7 +39,8 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
     enc(params),
   ].join("&");
 
-  const key = `${enc(cs)}&${enc(ats)}`;
+  const key =
+    `${enc(cs)}&${enc(ats)}`;
 
   oauth.oauth_signature = crypto
     .createHmac("sha1", key)
@@ -47,7 +51,10 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
     "OAuth " +
     Object.entries(oauth)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${enc(k)}="${enc(v)}"`)
+      .map(
+        ([k, v]) =>
+          `${enc(k)}="${enc(v)}"`
+      )
       .join(", ")
   );
 }
@@ -58,10 +65,17 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
 // ========================================
 
 function getXCredentials() {
-  const ck = process.env.X_CONSUMER_KEY;
-  const cs = process.env.X_CONSUMER_SECRET;
-  const at = process.env.X_ACCESS_TOKEN;
-  const ats = process.env.X_ACCESS_TOKEN_SECRET;
+  const ck =
+    process.env.X_CONSUMER_KEY;
+
+  const cs =
+    process.env.X_CONSUMER_SECRET;
+
+  const at =
+    process.env.X_ACCESS_TOKEN;
+
+  const ats =
+    process.env.X_ACCESS_TOKEN_SECRET;
 
   if (!ck || !cs || !at || !ats) {
     throw new Error(
@@ -78,8 +92,9 @@ function getXCredentials() {
 }
 
 
-// Xへ画像1枚をアップロードして
-// media_idを返す
+// ========================================
+// X 画像1枚アップロード
+// ========================================
 
 async function uploadXImage(
   imageBase64,
@@ -168,8 +183,12 @@ async function uploadXImage(
 }
 
 
-// Xへ投稿
-// imagesは最大4枚
+// ========================================
+// X 投稿
+//
+// ★最大4枚
+// ★画像アップロードを並列化
+// ========================================
 
 async function postToX(
   text,
@@ -190,31 +209,12 @@ async function postToX(
 
 
   // ======================================
-  // ★ X画像アップロードを並列化
-  //
-  // 以前：
-  //
-  // 画像1アップロード
-  // ↓
-  // 画像2アップロード
-  // ↓
-  // 画像3アップロード
-  // ↓
-  // 画像4アップロード
-  //
-  // 今回：
-  //
-  // 画像1 ─┐
-  // 画像2 ─┤
-  // 画像3 ─┤→ 全部完了 → Tweet作成
-  // 画像4 ─┘
-  //
-  // Promise.allは元の配列順で
-  // 結果を返すので画像順も維持される
+  // ★X画像を全部同時アップロード
   // ======================================
 
   const mediaIds =
     await Promise.all(
+
       images.map(
         async (image, index) => {
 
@@ -236,8 +236,7 @@ async function postToX(
             );
 
           console.log(
-            `X image upload finished ${index + 1}/${images.length}:`,
-            mediaId
+            `X image upload finished ${index + 1}/${images.length}`
           );
 
           return mediaId;
@@ -246,15 +245,21 @@ async function postToX(
     );
 
 
+  /*
+    Promise.allは元のimagesと
+    同じ順番で結果を返すため、
+    mediaIdsの画像順は維持される。
+  */
+
   console.log(
-    "X all images uploaded:",
+    "X all images ready:",
     mediaIds
   );
 
 
-  // ------------------------------
+  // ======================================
   // Tweet作成
-  // ------------------------------
+  // ======================================
 
   const url =
     "https://api.x.com/2/tweets";
@@ -265,7 +270,8 @@ async function postToX(
 
   if (mediaIds.length) {
     tweetBody.media = {
-      media_ids: mediaIds,
+      media_ids:
+        mediaIds,
     };
   }
 
@@ -290,7 +296,9 @@ async function postToX(
         },
 
         body:
-          JSON.stringify(tweetBody),
+          JSON.stringify(
+            tweetBody
+          ),
       }
     );
 
@@ -338,14 +346,20 @@ function getInstagramCredentials() {
 }
 
 
+// ========================================
+// Instagram画像をBlobへアップロード
+// ========================================
+
 async function uploadInstagramBlob(
   imageBase64,
   mimeType
 ) {
   const type =
-    mimeType || "image/jpeg";
+    mimeType ||
+    "image/jpeg";
 
-  let ext = "jpg";
+  let ext =
+    "jpg";
 
   if (type === "image/png") {
     ext = "png";
@@ -384,17 +398,23 @@ async function uploadInstagramBlob(
 }
 
 
-// Instagramコンテナが
-// FINISHEDになるまで待つ
+// ========================================
+// Instagram READY待ち
+// ========================================
 
 async function waitForInstagramReady(
   creationId,
   accessToken,
   label = "media"
 ) {
-  let lastStatus = null;
+  let lastStatus =
+    null;
 
-  // 最大約40秒
+  /*
+    2秒 × 20回
+    最大約40秒
+  */
+
   for (
     let i = 0;
     i < 20;
@@ -409,7 +429,9 @@ async function waitForInstagramReady(
       `&access_token=${encodeURIComponent(accessToken)}`;
 
     const response =
-      await fetch(statusUrl);
+      await fetch(
+        statusUrl
+      );
 
     const data =
       await response.json();
@@ -427,7 +449,8 @@ async function waitForInstagramReady(
       );
     }
 
-    lastStatus = data;
+    lastStatus =
+      data;
 
     if (
       data.status_code ===
@@ -455,6 +478,10 @@ async function waitForInstagramReady(
   );
 }
 
+
+// ========================================
+// Instagram 公開
+// ========================================
 
 async function publishInstagramContainer(
   creationId,
@@ -601,6 +628,8 @@ async function postSingleInstagram(
 
 // ========================================
 // Instagram カルーセル
+//
+// ★子画像を並列処理
 // ========================================
 
 async function postInstagramCarousel(
@@ -630,7 +659,7 @@ async function postInstagramCarousel(
 
 
   // ======================================
-  // Instagram子画像を並列処理
+  // ★全子画像を同時処理
   // ======================================
 
   const childIds =
@@ -647,7 +676,7 @@ async function postInstagramCarousel(
 
 
           // ------------------------------
-          // Blobへアップロード
+          // Blobアップロード
           // ------------------------------
 
           const imageUrl =
@@ -713,7 +742,7 @@ async function postInstagramCarousel(
 
 
           // ------------------------------
-          // 各画像が同時にREADY待ち
+          // ★READY待ちも並列
           // ------------------------------
 
           await waitForInstagramReady(
@@ -728,15 +757,21 @@ async function postInstagramCarousel(
     );
 
 
+  /*
+    Promise.allなので
+    完了した順番ではなく
+    元画像の順番が維持される。
+  */
+
   console.log(
     "Instagram all children ready:",
     childIds
   );
 
 
-  // ------------------------------
+  // ======================================
   // 親カルーセル作成
-  // ------------------------------
+  // ======================================
 
   const carouselUrl =
     `${GRAPH_BASE}/${userId}/media`;
@@ -792,9 +827,9 @@ async function postInstagramCarousel(
   }
 
 
-  // ------------------------------
-  // 親の処理完了待ち
-  // ------------------------------
+  // ======================================
+  // 親READY待ち
+  // ======================================
 
   await waitForInstagramReady(
     carouselData.id,
@@ -803,9 +838,9 @@ async function postInstagramCarousel(
   );
 
 
-  // ------------------------------
+  // ======================================
   // 公開
-  // ------------------------------
+  // ======================================
 
   return await publishInstagramContainer(
     carouselData.id,
@@ -857,6 +892,10 @@ export default async function handler(
       req.body || {};
 
 
+    // ====================================
+    // 基本チェック
+    // ====================================
+
     if (!text) {
       return res
         .status(400)
@@ -884,139 +923,214 @@ export default async function handler(
     const errors = {};
 
 
+    /*
+      ここが今回の大きな変更点。
+
+      XをawaitしてからInstagram、
+      ではなく、
+
+      tasksへ両方入れて
+      最後にPromise.all。
+
+      つまりXとInstagram自体も
+      同時進行する。
+    */
+
+    const tasks = [];
+
+
     // ====================================
-    // X
+    // X タスク
     // ====================================
 
     if (x) {
 
-      try {
+      tasks.push(
+        (async () => {
 
-        let finalXImages =
-          Array.isArray(xImages)
-            ? xImages
-            : [];
+          try {
 
-
-        // 古い1枚形式にも対応
-
-        if (
-          finalXImages.length === 0 &&
-          imageBase64
-        ) {
-
-          finalXImages = [
-            {
-              imageBase64,
-
-              mimeType:
-                mimeType ||
-                "image/jpeg",
-            },
-          ];
-        }
+            let finalXImages =
+              Array.isArray(xImages)
+                ? xImages
+                : [];
 
 
-        if (
-          finalXImages.length > 4
-        ) {
-          throw new Error(
-            "Xは画像を最大4枚まで投稿できます"
-          );
-        }
+            /*
+              古い1枚形式にも対応
+            */
+
+            if (
+              finalXImages.length === 0 &&
+              imageBase64
+            ) {
+
+              finalXImages = [
+                {
+                  imageBase64,
+
+                  mimeType:
+                    mimeType ||
+                    "image/jpeg",
+                },
+              ];
+            }
 
 
-        results.x =
-          await postToX(
-            text,
-            finalXImages
-          );
+            if (
+              finalXImages.length > 4
+            ) {
+              throw new Error(
+                "Xは画像を最大4枚まで投稿できます"
+              );
+            }
 
 
-      } catch (error) {
+            console.log(
+              "X task start"
+            );
 
-        errors.x =
-          String(
-            error?.message ||
-            error
-          );
-      }
+
+            results.x =
+              await postToX(
+                text,
+                finalXImages
+              );
+
+
+            console.log(
+              "X task finished"
+            );
+
+
+          } catch (error) {
+
+            errors.x =
+              String(
+                error?.message ||
+                error
+              );
+          }
+
+        })()
+      );
     }
 
 
     // ====================================
-    // Instagram
+    // Instagram タスク
     // ====================================
 
     if (instagram) {
 
-      try {
+      tasks.push(
+        (async () => {
 
-        let instagramImages =
-          Array.isArray(images)
-            ? images
-            : [];
+          try {
 
-
-        // 古い1枚形式にも対応
-
-        if (
-          instagramImages.length === 0 &&
-          imageBase64
-        ) {
-
-          instagramImages = [
-            {
-              imageBase64,
-
-              mimeType:
-                mimeType ||
-                "image/jpeg",
-            },
-          ];
-        }
+            let instagramImages =
+              Array.isArray(images)
+                ? images
+                : [];
 
 
-        if (
-          instagramImages.length === 0
-        ) {
+            /*
+              古い1枚形式にも対応
+            */
 
-          throw new Error(
-            "Instagram投稿には画像が必要です"
-          );
-        }
+            if (
+              instagramImages.length === 0 &&
+              imageBase64
+            ) {
+
+              instagramImages = [
+                {
+                  imageBase64,
+
+                  mimeType:
+                    mimeType ||
+                    "image/jpeg",
+                },
+              ];
+            }
 
 
-        if (
-          instagramImages.length === 1
-        ) {
+            if (
+              instagramImages.length === 0
+            ) {
 
-          results.instagram =
-            await postSingleInstagram(
-              text,
-              instagramImages[0]
+              throw new Error(
+                "Instagram投稿には画像が必要です"
+              );
+            }
+
+
+            if (
+              instagramImages.length > 10
+            ) {
+
+              throw new Error(
+                "Instagramは画像を最大10枚まで投稿できます"
+              );
+            }
+
+
+            console.log(
+              "Instagram task start"
             );
 
-        } else {
 
-          results.instagram =
-            await postInstagramCarousel(
-              text,
-              instagramImages
+            if (
+              instagramImages.length === 1
+            ) {
+
+              results.instagram =
+                await postSingleInstagram(
+                  text,
+                  instagramImages[0]
+                );
+
+            } else {
+
+              results.instagram =
+                await postInstagramCarousel(
+                  text,
+                  instagramImages
+                );
+            }
+
+
+            console.log(
+              "Instagram task finished"
             );
-        }
 
 
-      } catch (error) {
+          } catch (error) {
 
-        errors.instagram =
-          String(
-            error?.message ||
-            error
-          );
-      }
+            errors.instagram =
+              String(
+                error?.message ||
+                error
+              );
+          }
+
+        })()
+      );
     }
 
+
+    // ====================================
+    // ★X + Instagram 同時実行
+    // ====================================
+
+    await Promise.all(
+      tasks
+    );
+
+
+    // ====================================
+    // 結果
+    // ====================================
 
     const ok =
       Object.keys(errors)
