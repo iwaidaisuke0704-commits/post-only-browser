@@ -81,29 +81,42 @@
       cursor:pointer
     }
 
+    /*
+      画像下の操作エリア
+    */
+
     .imageTools{
       display:none;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
+      gap:8px;
       margin-top:10px
     }
 
     #imageCount{
       color:#666;
       font-size:14px;
-      font-weight:700
+      font-weight:700;
+      margin-right:auto;
+      white-space:nowrap
     }
 
+    #addImages,
     #clearImages{
       width:auto;
-      padding:9px 13px;
+      padding:10px 12px;
       border:1px solid #ddd;
       border-radius:10px;
       background:#fff;
-      color:#555;
+      color:#333;
       font-size:13px;
-      font-weight:700
+      font-weight:700;
+      cursor:pointer
+    }
+
+    #addImages{
+      background:#111;
+      color:#fff;
+      border-color:#111
     }
 
     textarea{
@@ -167,6 +180,7 @@
   <p class="sub">見る機能はありません。投稿するだけ。</p>
 
   <label class="pick">
+
     <input
       id="file"
       type="file"
@@ -181,20 +195,47 @@
     </span>
 
     <div id="preview"></div>
+
   </label>
 
-  <div id="imageTools" class="imageTools">
+
+  <!--
+    画像を選んだ後に表示
+
+    ○枚選択中
+    ＋画像を追加
+    全部消す
+  -->
+
+  <div
+    id="imageTools"
+    class="imageTools"
+  >
+
     <span id="imageCount"></span>
 
-    <button id="clearImages" type="button">
+    <button
+      id="addImages"
+      type="button"
+    >
+      ＋ 画像を追加
+    </button>
+
+    <button
+      id="clearImages"
+      type="button"
+    >
       全部消す
     </button>
+
   </div>
+
 
   <textarea
     id="caption"
     placeholder="投稿文"
   ></textarea>
+
 
   <div class="targets">
 
@@ -217,11 +258,14 @@
 
   </div>
 
+
   <button id="send">
     投稿する
   </button>
 
+
   <div id="status"></div>
+
 
   <div class="note">
     タイムライン・通知・いいね・コメントは取得しません。
@@ -245,6 +289,9 @@ const imageTools =
 const imageCount =
   document.querySelector("#imageCount");
 
+const addImages =
+  document.querySelector("#addImages");
+
 const clearImages =
   document.querySelector("#clearImages");
 
@@ -265,20 +312,16 @@ const status =
 
 
 /*
-  現在選択されている画像。
-
-  file.filesを直接使わず、
-  この配列を本体として扱う。
-
-  後から画像を追加しても
-  既存画像は残る。
+  現在選択中の画像
 */
 
 let selectedFiles = [];
 
 
 /*
-  プレビュー描画
+  ========================================
+  プレビュー
+  ========================================
 */
 
 function renderPreview() {
@@ -324,11 +367,13 @@ function renderPreview() {
       const img =
         document.createElement("img");
 
+
       const objectUrl =
         URL.createObjectURL(f);
 
       img.src =
         objectUrl;
+
 
       img.onload = () => {
 
@@ -339,7 +384,7 @@ function renderPreview() {
 
 
       /*
-        1枚削除ボタン
+        ×ボタン
       */
 
       const remove =
@@ -361,14 +406,6 @@ function renderPreview() {
 
 
       remove.onclick = (e) => {
-
-        /*
-          labelのクリックまで
-          伝わらないようにする。
-
-          ×を押したときに
-          画像選択画面が開くのを防ぐ。
-        */
 
         e.preventDefault();
         e.stopPropagation();
@@ -405,20 +442,30 @@ function renderPreview() {
 
 /*
   ========================================
-  ★画像選択
+  ＋画像を追加
   ========================================
 
-  ここが今回の変更点。
+  画像選択画面を開くだけ。
 
-  以前：
-  selectedFiles = newFiles
+  選んだ画像は下の
+  file.onchangeで既存画像へ追加される。
+*/
 
-  ↓
+addImages.onclick = (e) => {
 
-  今回：
-  既存画像 + 新しい画像
+  e.preventDefault();
+  e.stopPropagation();
 
-  になる。
+  file.click();
+};
+
+
+/*
+  ========================================
+  画像を選択したとき
+  ========================================
+
+  既存画像を消さずに追加する。
 */
 
 file.onchange = () => {
@@ -435,8 +482,9 @@ file.onchange = () => {
 
 
   /*
-    既存画像を残したまま
-    新しい画像を追加
+    既存画像
+      ＋
+    今回選んだ画像
   */
 
   selectedFiles = [
@@ -446,11 +494,7 @@ file.onchange = () => {
 
 
   /*
-    アプリ全体としては
-    Instagramの最大10枚を上限にする。
-
-    Xだけを使う場合の4枚制限は
-    投稿時に別途チェックする。
+    最大10枚
   */
 
   if (
@@ -477,11 +521,8 @@ file.onchange = () => {
 
 
   /*
-    inputをリセット。
-
-    これによって、
-    同じ画像をもう一度選んだ場合でも
-    onchangeが発火する。
+    同じ写真を再度選択しても
+    onchangeが動くようにする
   */
 
   file.value = "";
@@ -489,7 +530,9 @@ file.onchange = () => {
 
 
 /*
-  全画像削除
+  ========================================
+  全部消す
+  ========================================
 */
 
 clearImages.onclick = (e) => {
@@ -509,7 +552,9 @@ clearImages.onclick = (e) => {
 
 
 /*
-  File → Base64
+  ========================================
+  Base64
+  ========================================
 */
 
 function b64(f) {
@@ -519,6 +564,7 @@ function b64(f) {
 
       const r =
         new FileReader();
+
 
       r.onload = () => {
 
@@ -532,8 +578,10 @@ function b64(f) {
         );
       };
 
+
       r.onerror =
         rej;
+
 
       r.readAsDataURL(
         f
@@ -544,15 +592,12 @@ function b64(f) {
 
 
 /*
+  ========================================
   Instagram用画像生成
+  ========================================
 
-  元画像は切らない。
-
-  1080 × 1350の
-  白いキャンバスに、
-
-  縦横比を維持したまま
-  中央配置する。
+  元画像を切らずに
+  1080 × 1350の白背景へ配置。
 */
 
 async function makeInstagramImage(
@@ -564,16 +609,19 @@ async function makeInstagramImage(
       f
     );
 
+
   const canvas =
     document.createElement(
       "canvas"
     );
+
 
   const targetWidth =
     1080;
 
   const targetHeight =
     1350;
+
 
   canvas.width =
     targetWidth;
@@ -591,6 +639,7 @@ async function makeInstagramImage(
   ctx.fillStyle =
     "#ffffff";
 
+
   ctx.fillRect(
     0,
     0,
@@ -601,6 +650,7 @@ async function makeInstagramImage(
 
   const scale =
     Math.min(
+
       targetWidth /
         bitmap.width,
 
@@ -683,17 +733,12 @@ send.onclick = async () => {
     caption.value.trim();
 
 
-  /*
-    file.filesではなく
-    selectedFilesを使用する。
-  */
-
   const files =
     [...selectedFiles];
 
 
   /*
-    投稿文チェック
+    投稿文
   */
 
   if (!text) {
@@ -706,7 +751,7 @@ send.onclick = async () => {
 
 
   /*
-    投稿先チェック
+    投稿先
   */
 
   if (
@@ -722,7 +767,7 @@ send.onclick = async () => {
 
 
   /*
-    Instagramは画像必須
+    Instagram画像必須
   */
 
   if (
@@ -772,6 +817,9 @@ send.onclick = async () => {
   send.disabled =
     true;
 
+  addImages.disabled =
+    true;
+
   clearImages.disabled =
     true;
 
@@ -793,15 +841,7 @@ send.onclick = async () => {
       instagram:
         toIg.checked,
 
-      /*
-        Instagram用
-      */
-
       images: [],
-
-      /*
-        X用
-      */
 
       xImages: []
     };
@@ -811,8 +851,6 @@ send.onclick = async () => {
       ====================================
       X用画像
       ====================================
-
-      元画像をそのままBase64化。
     */
 
     if (
@@ -849,8 +887,6 @@ send.onclick = async () => {
       ====================================
       Instagram用画像
       ====================================
-
-      1080 × 1350へ変換。
     */
 
     if (
@@ -916,17 +952,19 @@ send.onclick = async () => {
 
 
     /*
-      publish.jsへ送信
+      APIへ送信
     */
 
     const r =
       await fetch(
         "/api/publish",
         {
+
           method:
             "POST",
 
           headers: {
+
             "Content-Type":
               "application/json"
           },
@@ -982,13 +1020,18 @@ send.onclick = async () => {
       e
     );
 
+
     status.textContent =
       e?.message ||
       "画像処理または接続でエラーが発生しました";
 
+
   } finally {
 
     send.disabled =
+      false;
+
+    addImages.disabled =
       false;
 
     clearImages.disabled =
