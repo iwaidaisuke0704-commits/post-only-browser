@@ -24,7 +24,6 @@
     }
 
     h1{margin:4px 0}
-
     .sub{color:#777}
 
     .pick{
@@ -51,12 +50,60 @@
       gap:10px
     }
 
-    #preview img{
+    .previewItem{
+      position:relative;
+    }
+
+    .previewItem img{
+      display:block;
       width:100%;
       aspect-ratio:4/5;
       object-fit:contain;
       background:#fff;
-      border-radius:12px
+      border-radius:12px;
+      border:1px solid #eee
+    }
+
+    .removeImage{
+      position:absolute;
+      top:7px;
+      right:7px;
+      width:34px;
+      height:34px;
+      padding:0;
+      border:0;
+      border-radius:50%;
+      background:rgba(0,0,0,.78);
+      color:#fff;
+      font-size:22px;
+      font-weight:700;
+      line-height:34px;
+      cursor:pointer
+    }
+
+    .imageTools{
+      display:none;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:10px
+    }
+
+    #imageCount{
+      color:#666;
+      font-size:14px;
+      font-weight:700
+    }
+
+    #clearImages{
+      width:auto;
+      padding:9px 13px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      background:#fff;
+      color:#555;
+      font-size:13px;
+      font-weight:700
     }
 
     textarea{
@@ -82,7 +129,7 @@
       padding:14px
     }
 
-    button{
+    #send{
       width:100%;
       border:0;
       border-radius:16px;
@@ -136,6 +183,13 @@
     <div id="preview"></div>
   </label>
 
+  <div id="imageTools" class="imageTools">
+    <span id="imageCount"></span>
+    <button id="clearImages" type="button">
+      全部消す
+    </button>
+  </div>
+
   <textarea
     id="caption"
     placeholder="投稿文"
@@ -184,6 +238,15 @@ const preview =
 const pickText =
   document.querySelector("#pickText");
 
+const imageTools =
+  document.querySelector("#imageTools");
+
+const imageCount =
+  document.querySelector("#imageCount");
+
+const clearImages =
+  document.querySelector("#clearImages");
+
 const caption =
   document.querySelector("#caption");
 
@@ -200,58 +263,205 @@ const status =
   document.querySelector("#status");
 
 
-file.onchange = () => {
+/*
+  重要
+
+  file.filesを直接投稿に使わず、
+  この配列を「現在選択されている画像」
+  として扱う。
+
+  ×で消した画像は
+  この配列からも消える。
+*/
+
+let selectedFiles = [];
+
+
+/*
+  プレビューを描き直す
+*/
+
+function renderPreview() {
 
   preview.innerHTML = "";
 
-  const files =
-    Array.from(file.files || []);
 
-  if (!files.length) {
-    pickText.style.display = "grid";
+  if (!selectedFiles.length) {
+
+    pickText.style.display =
+      "grid";
+
+    imageTools.style.display =
+      "none";
+
+    imageCount.textContent =
+      "";
+
     return;
   }
 
-  pickText.style.display = "none";
 
-  for (const f of files) {
+  pickText.style.display =
+    "none";
 
-    const img =
-      document.createElement("img");
+  imageTools.style.display =
+    "flex";
 
-    img.src =
-      URL.createObjectURL(f);
+  imageCount.textContent =
+    `${selectedFiles.length}枚選択中`;
 
-    img.onload = () => {
-      URL.revokeObjectURL(img.src);
-    };
 
-    preview.appendChild(img);
+  selectedFiles.forEach(
+    (f, index) => {
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "previewItem";
+
+
+      const img =
+        document.createElement("img");
+
+      const objectUrl =
+        URL.createObjectURL(f);
+
+      img.src =
+        objectUrl;
+
+      img.onload = () => {
+        URL.revokeObjectURL(
+          objectUrl
+        );
+      };
+
+
+      const remove =
+        document.createElement("button");
+
+      remove.type =
+        "button";
+
+      remove.className =
+        "removeImage";
+
+      remove.textContent =
+        "×";
+
+      remove.setAttribute(
+        "aria-label",
+        `${index + 1}枚目を削除`
+      );
+
+
+      /*
+        labelの中にボタンがあるので、
+        画像選択画面が同時に開かないよう
+        clickを止める。
+      */
+
+      remove.onclick = (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        selectedFiles.splice(
+          index,
+          1
+        );
+
+        renderPreview();
+
+        status.textContent =
+          "";
+      };
+
+
+      item.appendChild(img);
+      item.appendChild(remove);
+
+      preview.appendChild(item);
+    }
+  );
+}
+
+
+/*
+  新しく画像を選んだとき
+
+  今回は「追加」ではなく
+  新しい選択内容で置き換える。
+*/
+
+file.onchange = () => {
+
+  const newFiles =
+    Array.from(
+      file.files || []
+    );
+
+  if (!newFiles.length) {
+    return;
   }
+
+  selectedFiles =
+    newFiles;
+
+  renderPreview();
+
+  /*
+    同じ画像をもう一度選択しても
+    onchangeが動くようにリセット
+  */
+
+  file.value = "";
+};
+
+
+/*
+  全画像削除
+*/
+
+clearImages.onclick = (e) => {
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  selectedFiles = [];
+
+  file.value = "";
+
+  renderPreview();
+
+  status.textContent =
+    "";
 };
 
 
 function b64(f) {
 
-  return new Promise((res, rej) => {
+  return new Promise(
+    (res, rej) => {
 
-    const r =
-      new FileReader();
+      const r =
+        new FileReader();
 
-    r.onload = () => {
+      r.onload = () => {
 
-      const result =
-        String(r.result);
+        const result =
+          String(r.result);
 
-      res(
-        result.split(",")[1]
-      );
-    };
+        res(
+          result.split(",")[1]
+        );
+      };
 
-    r.onerror = rej;
+      r.onerror = rej;
 
-    r.readAsDataURL(f);
-  });
+      r.readAsDataURL(f);
+    }
+  );
 }
 
 
@@ -259,6 +469,7 @@ function b64(f) {
   Instagram用画像生成
 
   元画像は切らない。
+
   1080 × 1350 の白いキャンバスに
   縦横比を維持したまま中央配置。
 */
@@ -271,8 +482,11 @@ async function makeInstagramImage(f) {
   const canvas =
     document.createElement("canvas");
 
-  const targetWidth = 1080;
-  const targetHeight = 1350;
+  const targetWidth =
+    1080;
+
+  const targetHeight =
+    1350;
 
   canvas.width =
     targetWidth;
@@ -295,28 +509,39 @@ async function makeInstagramImage(f) {
 
   const scale =
     Math.min(
-      targetWidth / bitmap.width,
-      targetHeight / bitmap.height
+      targetWidth /
+        bitmap.width,
+
+      targetHeight /
+        bitmap.height
     );
 
   const drawWidth =
     Math.round(
-      bitmap.width * scale
+      bitmap.width *
+      scale
     );
 
   const drawHeight =
     Math.round(
-      bitmap.height * scale
+      bitmap.height *
+      scale
     );
 
   const x =
     Math.round(
-      (targetWidth - drawWidth) / 2
+      (
+        targetWidth -
+        drawWidth
+      ) / 2
     );
 
   const y =
     Math.round(
-      (targetHeight - drawHeight) / 2
+      (
+        targetHeight -
+        drawHeight
+      ) / 2
     );
 
   ctx.drawImage(
@@ -336,6 +561,7 @@ async function makeInstagramImage(f) {
     );
 
   return {
+
     imageBase64:
       dataUrl.split(",")[1],
 
@@ -345,13 +571,22 @@ async function makeInstagramImage(f) {
 }
 
 
+/*
+  投稿
+*/
+
 send.onclick = async () => {
 
   const text =
     caption.value.trim();
 
+  /*
+    file.filesではなく
+    selectedFilesを使う
+  */
+
   const files =
-    Array.from(file.files || []);
+    [...selectedFiles];
 
 
   if (!text) {
@@ -412,6 +647,7 @@ send.onclick = async () => {
 
 
   send.disabled = true;
+  clearImages.disabled = true;
 
   status.textContent =
     "画像を準備しています…";
@@ -421,7 +657,8 @@ send.onclick = async () => {
 
     const body = {
 
-      caption: text,
+      caption:
+        text,
 
       x:
         toX.checked,
@@ -432,12 +669,13 @@ send.onclick = async () => {
       /*
         Instagram用
       */
+
       images: [],
 
       /*
         X用
-        元画像をそのまま入れる
       */
+
       xImages: []
     };
 
@@ -445,9 +683,7 @@ send.onclick = async () => {
     /*
       X用画像
 
-      最大4枚。
-      Instagram用の4:5変換はせず、
-      選択された元画像をそのまま送る。
+      元画像をそのまま使う。
     */
 
     if (
@@ -465,8 +701,11 @@ send.onclick = async () => {
           `X用画像を準備中… ${i + 1}/${files.length}`;
 
         body.xImages.push({
+
           imageBase64:
-            await b64(files[i]),
+            await b64(
+              files[i]
+            ),
 
           mimeType:
             files[i].type ||
@@ -479,9 +718,7 @@ send.onclick = async () => {
     /*
       Instagram用画像
 
-      最大10枚。
-      全画像を1080×1350の
-      白キャンバスへ変換する。
+      1080 × 1350へ変換。
     */
 
     if (
@@ -503,16 +740,15 @@ send.onclick = async () => {
             files[i]
           );
 
-        body.images.push(image);
+        body.images.push(
+          image
+        );
       }
     }
 
 
     /*
-      旧1枚形式との互換性。
-
-      サーバー側を書き換えるまででも
-      最初の画像は従来形式で受け取れる。
+      旧1枚形式との互換性
     */
 
     if (
@@ -520,20 +756,24 @@ send.onclick = async () => {
     ) {
 
       body.imageBase64 =
-        body.xImages[0].imageBase64;
+        body.xImages[0]
+          .imageBase64;
 
       body.mimeType =
-        body.xImages[0].mimeType;
+        body.xImages[0]
+          .mimeType;
 
     } else if (
       body.images.length
     ) {
 
       body.imageBase64 =
-        body.images[0].imageBase64;
+        body.images[0]
+          .imageBase64;
 
       body.mimeType =
-        body.images[0].mimeType;
+        body.images[0]
+          .mimeType;
     }
 
 
@@ -545,7 +785,8 @@ send.onclick = async () => {
       await fetch(
         "/api/publish",
         {
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
             "Content-Type":
@@ -553,7 +794,9 @@ send.onclick = async () => {
           },
 
           body:
-            JSON.stringify(body)
+            JSON.stringify(
+              body
+            )
         }
       );
 
@@ -562,7 +805,8 @@ send.onclick = async () => {
 
     try {
 
-      j = await r.json();
+      j =
+        await r.json();
 
     } catch {
 
@@ -604,8 +848,12 @@ send.onclick = async () => {
   } finally {
 
     send.disabled = false;
+    clearImages.disabled = false;
   }
 };
+
+
+renderPreview();
 
 </script>
 
