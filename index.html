@@ -224,11 +224,8 @@
     }
 
     /*
-      本物のdatetime-local。
-
-      完全にdisplay:noneにはしない。
-      ブラウザによってshowPickerが
-      動かなくなるのを避ける。
+      datetime-local本体。
+      display:noneにはしない。
     */
 
     #scheduleAt{
@@ -297,6 +294,7 @@
     見る機能はありません。投稿するだけ。
   </p>
 
+
   <!-- ===================================
        画像
   ==================================== -->
@@ -322,6 +320,7 @@
 
   </label>
 
+
   <div
     id="imageTools"
     class="imageTools"
@@ -345,6 +344,7 @@
 
   </div>
 
+
   <!-- ===================================
        投稿文
   ==================================== -->
@@ -353,6 +353,7 @@
     id="caption"
     placeholder="投稿文"
   ></textarea>
+
 
   <!-- ===================================
        投稿先
@@ -378,6 +379,7 @@
     </label>
 
   </div>
+
 
   <!-- ===================================
        投稿タイミング
@@ -414,6 +416,7 @@
 
     </div>
 
+
     <div id="scheduleBox">
 
       <div id="scheduleLabel">
@@ -424,6 +427,7 @@
         id="scheduleButton"
         type="button"
       >
+
         <span
           id="scheduleButtonText"
           class="scheduleButtonText"
@@ -434,7 +438,9 @@
         <span class="scheduleArrow">
           ›
         </span>
+
       </button>
+
 
       <input
         id="scheduleAt"
@@ -446,6 +452,7 @@
 
   </div>
 
+
   <!-- ===================================
        投稿ボタン
   ==================================== -->
@@ -454,7 +461,9 @@
     投稿する
   </button>
 
+
   <div id="status"></div>
+
 
   <div class="note">
     タイムライン・通知・いいね・コメントは取得しません。
@@ -704,9 +713,6 @@ scheduleButton.addEventListener(
       );
     }
 
-    /*
-      showPicker非対応ブラウザ用
-    */
 
     scheduleAt.focus();
 
@@ -849,8 +855,10 @@ function renderPreview() {
       const img =
         document.createElement("img");
 
+
       const objectUrl =
         URL.createObjectURL(f);
+
 
       img.src =
         objectUrl;
@@ -879,6 +887,7 @@ function renderPreview() {
       const remove =
         document.createElement("button");
 
+
       remove.type =
         "button";
 
@@ -887,6 +896,7 @@ function renderPreview() {
 
       remove.textContent =
         "×";
+
 
       remove.setAttribute(
         "aria-label",
@@ -899,12 +909,15 @@ function renderPreview() {
         (e) => {
 
           e.preventDefault();
+
           e.stopPropagation();
+
 
           selectedFiles.splice(
             index,
             1
           );
+
 
           renderPreview();
 
@@ -924,6 +937,7 @@ function renderPreview() {
         remove
       );
 
+
       preview.appendChild(
         item
       );
@@ -941,6 +955,7 @@ addImages.addEventListener(
   (e) => {
 
     e.preventDefault();
+
     e.stopPropagation();
 
     file.click();
@@ -957,6 +972,7 @@ file.addEventListener(
   () => {
 
     clearErrorStyle();
+
 
     const newFiles =
       Array.from(
@@ -997,12 +1013,9 @@ file.addEventListener(
 
     renderPreview();
 
-    /*
-      同じ画像をもう一度
-      選択可能にする
-    */
 
-    file.value = "";
+    file.value =
+      "";
   }
 );
 
@@ -1016,15 +1029,22 @@ clearImages.addEventListener(
   (e) => {
 
     e.preventDefault();
+
     e.stopPropagation();
 
-    selectedFiles = [];
 
-    file.value = "";
+    selectedFiles =
+      [];
+
+
+    file.value =
+      "";
+
 
     renderPreview();
 
     clearErrorStyle();
+
 
     status.textContent =
       "";
@@ -1052,10 +1072,14 @@ function b64(f) {
             reader.result
           );
 
+
         const commaIndex =
           result.indexOf(",");
 
-        if (commaIndex === -1) {
+
+        if (
+          commaIndex === -1
+        ) {
 
           reject(
             new Error(
@@ -1065,6 +1089,7 @@ function b64(f) {
 
           return;
         }
+
 
         resolve(
           result.slice(
@@ -1097,7 +1122,9 @@ function b64(f) {
    Instagram画像生成
 ======================================== */
 
-async function makeInstagramImage(f) {
+async function makeInstagramImage(
+  f
+) {
 
   const bitmap =
     await createImageBitmap(
@@ -1126,7 +1153,9 @@ async function makeInstagramImage(f) {
 
 
   const ctx =
-    canvas.getContext("2d");
+    canvas.getContext(
+      "2d"
+    );
 
 
   if (!ctx) {
@@ -1225,7 +1254,7 @@ async function makeInstagramImage(f) {
 
 
 /* ========================================
-   投稿
+   投稿処理
 ======================================== */
 
 send.addEventListener(
@@ -1242,6 +1271,10 @@ send.addEventListener(
     const files =
       [...selectedFiles];
 
+
+    /* ====================================
+       基本チェック
+    ==================================== */
 
     if (!text) {
 
@@ -1301,12 +1334,20 @@ send.addEventListener(
 
 
     /* ====================================
-       予約
+       予約日時チェック
     ==================================== */
 
-    if (postLater.checked) {
+    let scheduledDate =
+      null;
 
-      if (!scheduleAt.value) {
+
+    if (
+      postLater.checked
+    ) {
+
+      if (
+        !scheduleAt.value
+      ) {
 
         status.textContent =
           "予約日時を選んでください";
@@ -1315,7 +1356,7 @@ send.addEventListener(
       }
 
 
-      const scheduledDate =
+      scheduledDate =
         new Date(
           scheduleAt.value
         );
@@ -1344,24 +1385,11 @@ send.addEventListener(
 
         return;
       }
-
-
-      /*
-        まだ予約APIには送らない。
-
-        ここまで動けば
-        フロント側の予約UIは正常。
-      */
-
-      status.textContent =
-        "✓ 予約日時OK。次にサーバー側を接続します";
-
-      return;
     }
 
 
     /* ====================================
-       今すぐ投稿
+       共通処理開始
     ==================================== */
 
     send.disabled =
@@ -1372,10 +1400,6 @@ send.addEventListener(
 
     clearImages.disabled =
       true;
-
-
-    status.textContent =
-      "画像を準備しています…";
 
 
     try {
@@ -1391,16 +1415,16 @@ send.addEventListener(
         instagram:
           toIg.checked,
 
-        images: [],
+        images:
+          [],
 
-        xImages: []
+        xImages:
+          []
       };
 
 
       /* ==================================
          X画像
-
-         Promise.allで並列変換
       ================================== */
 
       if (
@@ -1432,8 +1456,6 @@ send.addEventListener(
 
       /* ==================================
          Instagram画像
-
-         Promise.allで並列変換
       ================================== */
 
       if (
@@ -1450,14 +1472,16 @@ send.addEventListener(
 
             files.map(
               (f) =>
-                makeInstagramImage(f)
+                makeInstagramImage(
+                  f
+                )
             )
           );
       }
 
 
       /* ==================================
-         旧形式互換
+         旧1枚形式との互換性
       ================================== */
 
       if (
@@ -1467,6 +1491,7 @@ send.addEventListener(
         body.imageBase64 =
           body.xImages[0]
             .imageBase64;
+
 
         body.mimeType =
           body.xImages[0]
@@ -1480,24 +1505,65 @@ send.addEventListener(
           body.images[0]
             .imageBase64;
 
+
         body.mimeType =
           body.images[0]
             .mimeType;
       }
 
 
-      status.textContent =
-        "投稿中…";
+      /* ==================================
+         ★ 今すぐ / 予約 分岐
+      ================================== */
 
+      let endpoint;
+
+
+      if (
+        postLater.checked
+      ) {
+
+        /*
+          datetime-localで選んだ
+          ローカル時刻をISO形式へ変換
+        */
+
+        body.scheduleAt =
+          scheduledDate.toISOString();
+
+
+        endpoint =
+          "/api/schedule";
+
+
+        status.textContent =
+          "予約を保存しています…";
+
+      } else {
+
+        endpoint =
+          "/api/publish";
+
+
+        status.textContent =
+          "投稿中…";
+      }
+
+
+      /* ==================================
+         API送信
+      ================================== */
 
       const response =
         await fetch(
-          "/api/publish",
+          endpoint,
           {
+
             method:
               "POST",
 
             headers: {
+
               "Content-Type":
                 "application/json"
             },
@@ -1527,41 +1593,119 @@ send.addEventListener(
 
 
       console.log(
-        "publish response:",
+        postLater.checked
+          ? "schedule response:"
+          : "publish response:",
         result
       );
 
+
+      /* ==================================
+         成功
+      ================================== */
 
       if (
         response.ok &&
         result.ok
       ) {
 
-        status.textContent =
-          "✓ 投稿しました";
+        if (
+          postLater.checked
+        ) {
 
-      } else {
+          status.textContent =
+            "✓ 投稿を予約しました";
 
-        throw new Error(
-          result.errors?.instagram ||
-          result.errors?.x ||
-          result.error ||
-          `投稿できませんでした (${response.status})`
-        );
+        } else {
+
+          status.textContent =
+            "✓ 投稿しました";
+        }
+
+
+        /*
+          投稿内容をリセット
+        */
+
+        caption.value =
+          "";
+
+
+        selectedFiles =
+          [];
+
+
+        file.value =
+          "";
+
+
+        renderPreview();
+
+
+        /*
+          予約日時もリセット
+        */
+
+        if (
+          postLater.checked
+        ) {
+
+          scheduleAt.value =
+            "";
+
+
+          updateScheduleButton();
+
+          updateMinimumScheduleTime();
+        }
+
+
+        return;
       }
+
+
+      /* ==================================
+         APIエラー
+      ================================== */
+
+      throw new Error(
+
+        result.errors?.instagram ||
+
+        result.errors?.x ||
+
+        result.error ||
+
+        (
+          postLater.checked
+
+            ? `予約できませんでした (${response.status})`
+
+            : `投稿できませんでした (${response.status})`
+        )
+      );
 
 
     } catch (error) {
 
       console.error(
-        "Publish error:",
+        postLater.checked
+          ? "Schedule error:"
+          : "Publish error:",
         error
       );
 
 
       showError(
         error?.message ||
-        "画像処理または接続でエラーが発生しました"
+
+        (
+          postLater.checked
+
+            ? "予約処理でエラーが発生しました"
+
+            : "画像処理または接続でエラーが発生しました"
+        )
       );
 
 
