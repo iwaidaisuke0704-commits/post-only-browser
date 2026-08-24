@@ -57,7 +57,7 @@ function auth(method, url, ck, cs, at, ats, bodyParams = {}) {
 // X
 // ========================================
 
-async function postToX(text, imageBase64) {
+function getXCredentials() {
   const ck = process.env.X_CONSUMER_KEY;
   const cs = process.env.X_CONSUMER_SECRET;
   const at = process.env.X_ACCESS_TOKEN;
@@ -69,80 +69,203 @@ async function postToX(text, imageBase64) {
     );
   }
 
-  let mediaId = null;
+  return {
+    ck,
+    cs,
+    at,
+    ats,
+  };
+}
 
-  if (imageBase64) {
-    const uploadUrl =
-      "https://upload.twitter.com/1.1/media/upload.json";
 
-    const form = new URLSearchParams();
-    form.set("media_data", imageBase64);
+// Xへ画像1枚をアップロードして
+// media_idを返す
+async function uploadXImage(
+  imageBase64,
+  mimeType,
+  credentials
+) {
+  const {
+    ck,
+    cs,
+    at,
+    ats,
+  } = credentials;
 
-    const uploadResponse = await fetch(uploadUrl, {
-      method: "POST",
-      headers: {
-        Authorization: auth(
-          "POST",
-          uploadUrl,
-          ck,
-          cs,
-          at,
-          ats,
-          { media_data: imageBase64 }
-        ),
-        "Content-Type":
-          "application/x-www-form-urlencoded",
-      },
-      body: form.toString(),
-    });
+  if (!imageBase64) {
+    throw new Error(
+      "X画像データがありません"
+    );
+  }
 
-    const uploadData =
-      await uploadResponse.json();
+  const uploadUrl =
+    "https://upload.twitter.com/1.1/media/upload.json";
 
-    console.log(
-      "X upload response:",
-      uploadResponse.status,
-      uploadData
+  const form =
+    new URLSearchParams();
+
+  form.set(
+    "media_data",
+    imageBase64
+  );
+
+  const uploadResponse =
+    await fetch(
+      uploadUrl,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization: auth(
+            "POST",
+            uploadUrl,
+            ck,
+            cs,
+            at,
+            ats,
+            {
+              media_data:
+                imageBase64,
+            }
+          ),
+
+          "Content-Type":
+            "application/x-www-form-urlencoded",
+        },
+
+        body:
+          form.toString(),
+      }
     );
 
-    if (!uploadResponse.ok) {
+  const uploadData =
+    await uploadResponse.json();
+
+  console.log(
+    "X upload response:",
+    uploadResponse.status,
+    uploadData
+  );
+
+  if (!uploadResponse.ok) {
+    throw new Error(
+      "X画像アップロード失敗: " +
+      JSON.stringify(uploadData)
+    );
+  }
+
+  const mediaId =
+    uploadData.media_id_string;
+
+  if (!mediaId) {
+    throw new Error(
+      "X画像アップロード後のmedia_idがありません"
+    );
+  }
+
+  return mediaId;
+}
+
+
+// Xへ投稿
+// imagesは最大4枚
+async function postToX(
+  text,
+  images = []
+) {
+  const credentials =
+    getXCredentials();
+
+  if (!Array.isArray(images)) {
+    images = [];
+  }
+
+  if (images.length > 4) {
+    throw new Error(
+      "Xは画像を最大4枚まで投稿できます"
+    );
+  }
+
+  const mediaIds = [];
+
+
+  // ------------------------------
+  // 各画像をXへアップロード
+  // ------------------------------
+
+  for (
+    let i = 0;
+    i < images.length;
+    i++
+  ) {
+
+    const image =
+      images[i];
+
+    if (!image?.imageBase64) {
       throw new Error(
-        "X画像アップロード失敗: " +
-        JSON.stringify(uploadData)
+        `X画像${i + 1}のデータがありません`
       );
     }
 
-    mediaId =
-      uploadData.media_id_string;
+    console.log(
+      `X image upload ${i + 1}/${images.length}`
+    );
+
+    const mediaId =
+      await uploadXImage(
+        image.imageBase64,
+        image.mimeType,
+        credentials
+      );
+
+    mediaIds.push(
+      mediaId
+    );
   }
+
+
+  // ------------------------------
+  // Tweet作成
+  // ------------------------------
 
   const url =
     "https://api.x.com/2/tweets";
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: auth(
-        "POST",
-        url,
-        ck,
-        cs,
-        at,
-        ats
-      ),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(
-      mediaId
-        ? {
-            text,
-            media: {
-              media_ids: [mediaId],
-            },
-          }
-        : { text }
-    ),
-  });
+  const tweetBody = {
+    text,
+  };
+
+  if (mediaIds.length) {
+    tweetBody.media = {
+      media_ids: mediaIds,
+    };
+  }
+
+  const response =
+    await fetch(
+      url,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization: auth(
+            "POST",
+            url,
+            credentials.ck,
+            credentials.cs,
+            credentials.at,
+            credentials.ats
+          ),
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify(tweetBody),
+      }
+    );
 
   const data =
     await response.json();
@@ -236,7 +359,6 @@ async function uploadInstagramBlob(
 
 // Instagramコンテナが
 // FINISHEDになるまで待つ
-
 async function waitForInstagramReady(
   creationId,
   accessToken,
@@ -245,7 +367,11 @@ async function waitForInstagramReady(
   let lastStatus = null;
 
   // 最大約40秒
-  for (let i = 0; i < 20; i++) {
+  for (
+    let i = 0;
+    i < 20;
+    i++
+  ) {
 
     await sleep(2000);
 
@@ -276,14 +402,17 @@ async function waitForInstagramReady(
     lastStatus = data;
 
     if (
-      data.status_code === "FINISHED"
+      data.status_code ===
+      "FINISHED"
     ) {
       return data;
     }
 
     if (
-      data.status_code === "ERROR" ||
-      data.status_code === "EXPIRED"
+      data.status_code ===
+        "ERROR" ||
+      data.status_code ===
+        "EXPIRED"
     ) {
       throw new Error(
         "Instagram画像処理失敗: " +
@@ -309,8 +438,11 @@ async function publishInstagramContainer(
 
   const publishBody =
     new URLSearchParams({
-      creation_id: creationId,
-      access_token: accessToken,
+      creation_id:
+        creationId,
+
+      access_token:
+        accessToken,
     });
 
   const response =
@@ -318,10 +450,12 @@ async function publishInstagramContainer(
       publishUrl,
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/x-www-form-urlencoded",
         },
+
         body:
           publishBody.toString(),
       }
@@ -358,7 +492,8 @@ async function postSingleInstagram(
   const {
     userId,
     accessToken,
-  } = getInstagramCredentials();
+  } =
+    getInstagramCredentials();
 
   if (!image?.imageBase64) {
     throw new Error(
@@ -377,9 +512,14 @@ async function postSingleInstagram(
 
   const createBody =
     new URLSearchParams({
-      image_url: imageUrl,
-      caption: text,
-      access_token: accessToken,
+      image_url:
+        imageUrl,
+
+      caption:
+        text,
+
+      access_token:
+        accessToken,
     });
 
   const response =
@@ -387,10 +527,12 @@ async function postSingleInstagram(
       createUrl,
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/x-www-form-urlencoded",
         },
+
         body:
           createBody.toString(),
       }
@@ -440,7 +582,8 @@ async function postInstagramCarousel(
   const {
     userId,
     accessToken,
-  } = getInstagramCredentials();
+  } =
+    getInstagramCredentials();
 
   if (
     !Array.isArray(images) ||
@@ -461,7 +604,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 1. 各画像の子コンテナを作る
+  // 1. 子コンテナ作成
   // ------------------------------
 
   for (
@@ -469,6 +612,7 @@ async function postInstagramCarousel(
     i < images.length;
     i++
   ) {
+
     const image =
       images[i];
 
@@ -489,9 +633,14 @@ async function postInstagramCarousel(
 
     const createBody =
       new URLSearchParams({
-        image_url: imageUrl,
-        is_carousel_item: "true",
-        access_token: accessToken,
+        image_url:
+          imageUrl,
+
+        is_carousel_item:
+          "true",
+
+        access_token:
+          accessToken,
       });
 
     const response =
@@ -499,10 +648,12 @@ async function postInstagramCarousel(
         createUrl,
         {
           method: "POST",
+
           headers: {
             "Content-Type":
               "application/x-www-form-urlencoded",
           },
+
           body:
             createBody.toString(),
         }
@@ -527,7 +678,6 @@ async function postInstagramCarousel(
       );
     }
 
-    // 子画像の処理完了を待つ
     await waitForInstagramReady(
       data.id,
       accessToken,
@@ -541,7 +691,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 2. 親カルーセルを作る
+  // 2. 親カルーセル作成
   // ------------------------------
 
   const carouselUrl =
@@ -549,11 +699,17 @@ async function postInstagramCarousel(
 
   const carouselBody =
     new URLSearchParams({
-      media_type: "CAROUSEL",
+      media_type:
+        "CAROUSEL",
+
       children:
         childIds.join(","),
-      caption: text,
-      access_token: accessToken,
+
+      caption:
+        text,
+
+      access_token:
+        accessToken,
     });
 
   const carouselResponse =
@@ -561,10 +717,12 @@ async function postInstagramCarousel(
       carouselUrl,
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/x-www-form-urlencoded",
         },
+
         body:
           carouselBody.toString(),
       }
@@ -591,7 +749,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 3. 親カルーセルのREADY待ち
+  // 3. 親の処理完了待ち
   // ------------------------------
 
   await waitForInstagramReady(
@@ -602,7 +760,7 @@ async function postInstagramCarousel(
 
 
   // ------------------------------
-  // 4. カルーセル公開
+  // 4. 公開
   // ------------------------------
 
   return await publishInstagramContainer(
@@ -621,36 +779,60 @@ export default async function handler(
   req,
   res
 ) {
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      error: "Method not allowed",
-    });
+  if (
+    req.method !== "POST"
+  ) {
+    return res
+      .status(405)
+      .json({
+        error:
+          "Method not allowed",
+      });
   }
 
+
   try {
+
     const {
       caption: text,
+
+      // 旧形式
       imageBase64,
       mimeType,
+
+      // Instagram用
       images,
+
+      // X用
+      xImages,
+
       x,
       instagram,
-    } = req.body || {};
+
+    } =
+      req.body || {};
 
 
     if (!text) {
-      return res.status(400).json({
-        error:
-          "投稿文がありません",
-      });
+      return res
+        .status(400)
+        .json({
+          error:
+            "投稿文がありません",
+        });
     }
 
 
-    if (!x && !instagram) {
-      return res.status(400).json({
-        error:
-          "投稿先が選択されていません",
-      });
+    if (
+      !x &&
+      !instagram
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "投稿先が選択されていません",
+        });
     }
 
 
@@ -658,18 +840,59 @@ export default async function handler(
     const errors = {};
 
 
-    // ------------------------------
+    // ====================================
     // X
-    // ------------------------------
+    // ====================================
 
     if (x) {
+
       try {
+
+        let finalXImages =
+          Array.isArray(xImages)
+            ? xImages
+            : [];
+
+
+        /*
+          古い1枚形式にも対応
+        */
+
+        if (
+          finalXImages.length === 0 &&
+          imageBase64
+        ) {
+
+          finalXImages = [
+            {
+              imageBase64,
+
+              mimeType:
+                mimeType ||
+                "image/jpeg",
+            },
+          ];
+        }
+
+
+        if (
+          finalXImages.length > 4
+        ) {
+          throw new Error(
+            "Xは画像を最大4枚まで投稿できます"
+          );
+        }
+
+
         results.x =
           await postToX(
             text,
-            imageBase64
+            finalXImages
           );
+
+
       } catch (error) {
+
         errors.x =
           String(
             error?.message ||
@@ -679,11 +902,12 @@ export default async function handler(
     }
 
 
-    // ------------------------------
+    // ====================================
     // Instagram
-    // ------------------------------
+    // ====================================
 
     if (instagram) {
+
       try {
 
         let instagramImages =
@@ -692,14 +916,19 @@ export default async function handler(
             : [];
 
 
-        // 古い1枚形式にも対応
+        /*
+          古い1枚形式にも対応
+        */
+
         if (
           instagramImages.length === 0 &&
           imageBase64
         ) {
+
           instagramImages = [
             {
               imageBase64,
+
               mimeType:
                 mimeType ||
                 "image/jpeg",
@@ -711,6 +940,7 @@ export default async function handler(
         if (
           instagramImages.length === 0
         ) {
+
           throw new Error(
             "Instagram投稿には画像が必要です"
           );
@@ -736,6 +966,7 @@ export default async function handler(
             );
         }
 
+
       } catch (error) {
 
         errors.instagram =
@@ -748,21 +979,25 @@ export default async function handler(
 
 
     const ok =
-      Object.keys(errors).length === 0;
+      Object.keys(errors)
+        .length === 0;
 
 
     return res
-      .status(ok ? 200 : 500)
+      .status(
+        ok ? 200 : 500
+      )
       .json({
         ok,
         results,
         errors,
 
-        error: ok
-          ? undefined
-          : Object
-              .values(errors)
-              .join(" / "),
+        error:
+          ok
+            ? undefined
+            : Object
+                .values(errors)
+                .join(" / "),
       });
 
 
@@ -773,12 +1008,14 @@ export default async function handler(
       error
     );
 
-    return res.status(500).json({
-      error:
-        String(
-          error?.message ||
-          error
-        ),
-    });
+    return res
+      .status(500)
+      .json({
+        error:
+          String(
+            error?.message ||
+            error
+          ),
+      });
   }
 }
