@@ -139,11 +139,9 @@
     }
 
 
-    /*
-      =====================================
-      投稿タイミング
-      =====================================
-    */
+    /* =====================================
+       投稿タイミング
+    ===================================== */
 
     .timing{
       margin:14px 0;
@@ -174,40 +172,71 @@
       cursor:pointer
     }
 
+
+    /* =====================================
+       予約日時
+    ===================================== */
+
     #scheduleBox{
       display:none;
       margin-top:12px
     }
 
     /*
-      ★追加
-      日時欄が空でも何の入力欄か分かるようにする
+      実際のdatetime-localは透明にして
+      ボタン全体に重ねる
     */
 
-    .scheduleLabel{
-      margin-bottom:8px;
-      color:#666;
-      font-size:13px;
-      font-weight:700
+    .schedulePicker{
+      position:relative;
+      width:100%;
+    }
+
+    #scheduleDisplay{
+      width:100%;
+      min-height:58px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px 16px;
+      border:1px solid #ddd;
+      border-radius:12px;
+      background:#fff;
+      color:#777;
+      font:inherit;
+      font-size:16px;
+      font-weight:650;
+      text-align:left;
+      cursor:pointer
+    }
+
+    #scheduleDisplay.hasValue{
+      color:#111
+    }
+
+    #scheduleDisplay::after{
+      content:"›";
+      flex:none;
+      color:#777;
+      font-size:24px;
+      line-height:1;
+      transform:rotate(90deg)
     }
 
     #scheduleAt{
+      position:absolute;
+      inset:0;
       width:100%;
-      border:1px solid #ddd;
-      border-radius:12px;
-      padding:14px;
-      background:#fff;
-      color:#111;
-      font:inherit;
-      font-size:16px
+      height:100%;
+      opacity:0;
+      cursor:pointer
     }
 
 
-    /*
-      =====================================
-      投稿ボタン
-      =====================================
-    */
+    /* =====================================
+       投稿ボタン
+    ===================================== */
 
     #send{
       width:100%;
@@ -373,17 +402,29 @@
     </div>
 
 
+    <!--
+      ここが修正版。
+
+      空欄ではなく
+      「予約日時を選ぶ」
+      が必ず表示される。
+    -->
+
     <div id="scheduleBox">
 
-      <!-- ★追加 -->
-      <div class="scheduleLabel">
-        予約日時を選択
-      </div>
+      <div class="schedulePicker">
 
-      <input
-        id="scheduleAt"
-        type="datetime-local"
-      >
+        <div id="scheduleDisplay">
+          予約日時を選ぶ
+        </div>
+
+        <input
+          id="scheduleAt"
+          type="datetime-local"
+          aria-label="予約日時を選ぶ"
+        >
+
+      </div>
 
     </div>
 
@@ -457,21 +498,20 @@ const scheduleBox =
 const scheduleAt =
   document.querySelector("#scheduleAt");
 
+const scheduleDisplay =
+  document.querySelector("#scheduleDisplay");
 
-/*
-  ========================================
-  現在選択中の画像
-  ========================================
-*/
+
+/* ========================================
+   現在選択中の画像
+======================================== */
 
 let selectedFiles = [];
 
 
-/*
-  ========================================
-  予約UI
-  ========================================
-*/
+/* ========================================
+   予約UI
+======================================== */
 
 function updateTimingUI() {
 
@@ -502,7 +542,7 @@ postLater.onchange =
 
 
 /*
-  過去日時をなるべく選びにくくする
+  過去日時を選びにくくする
 */
 
 function updateMinimumScheduleTime() {
@@ -527,9 +567,88 @@ updateMinimumScheduleTime();
 
 /*
   ========================================
-  プレビュー
+  予約日時の表示更新
   ========================================
 */
+
+function updateScheduleDisplay() {
+
+  if (!scheduleAt.value) {
+
+    scheduleDisplay.textContent =
+      "予約日時を選ぶ";
+
+    scheduleDisplay.classList.remove(
+      "hasValue"
+    );
+
+    return;
+  }
+
+
+  const date =
+    new Date(
+      scheduleAt.value
+    );
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+
+    scheduleDisplay.textContent =
+      "予約日時を選ぶ";
+
+    scheduleDisplay.classList.remove(
+      "hasValue"
+    );
+
+    return;
+  }
+
+
+  const formatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        year:"numeric",
+        month:"numeric",
+        day:"numeric",
+        weekday:"short",
+        hour:"2-digit",
+        minute:"2-digit"
+      }
+    );
+
+
+  scheduleDisplay.textContent =
+    formatter.format(
+      date
+    );
+
+
+  scheduleDisplay.classList.add(
+    "hasValue"
+  );
+}
+
+
+scheduleAt.addEventListener(
+  "change",
+  updateScheduleDisplay
+);
+
+scheduleAt.addEventListener(
+  "input",
+  updateScheduleDisplay
+);
+
+
+/* ========================================
+   プレビュー
+======================================== */
 
 function renderPreview() {
 
@@ -640,11 +759,9 @@ function renderPreview() {
 }
 
 
-/*
-  ========================================
-  ＋画像を追加
-  ========================================
-*/
+/* ========================================
+   ＋画像を追加
+======================================== */
 
 addImages.onclick = (e) => {
 
@@ -655,11 +772,9 @@ addImages.onclick = (e) => {
 };
 
 
-/*
-  ========================================
-  画像選択
-  ========================================
-*/
+/* ========================================
+   画像選択
+======================================== */
 
 file.onchange = () => {
 
@@ -679,10 +794,6 @@ file.onchange = () => {
     ...newFiles
   ];
 
-
-  /*
-    最大10枚
-  */
 
   if (
     selectedFiles.length > 10
@@ -706,20 +817,13 @@ file.onchange = () => {
 
   renderPreview();
 
-
-  /*
-    同じ画像をもう一度選べるように
-  */
-
   file.value = "";
 };
 
 
-/*
-  ========================================
-  全部消す
-  ========================================
-*/
+/* ========================================
+   全部消す
+======================================== */
 
 clearImages.onclick = (e) => {
 
@@ -737,11 +841,9 @@ clearImages.onclick = (e) => {
 };
 
 
-/*
-  ========================================
-  Base64
-  ========================================
-*/
+/* ========================================
+   Base64
+======================================== */
 
 function b64(f) {
 
@@ -777,14 +879,9 @@ function b64(f) {
 }
 
 
-/*
-  ========================================
-  Instagram画像生成
-  ========================================
-
-  元画像を切らず
-  1080 × 1350の白背景へ配置
-*/
+/* ========================================
+   Instagram画像生成
+======================================== */
 
 async function makeInstagramImage(
   f
@@ -907,11 +1004,9 @@ async function makeInstagramImage(
 }
 
 
-/*
-  ========================================
-  投稿
-  ========================================
-*/
+/* ========================================
+   投稿
+======================================== */
 
 send.onclick = async () => {
 
@@ -922,10 +1017,6 @@ send.onclick = async () => {
     [...selectedFiles];
 
 
-  /*
-    投稿文
-  */
-
   if (!text) {
 
     status.textContent =
@@ -934,10 +1025,6 @@ send.onclick = async () => {
     return;
   }
 
-
-  /*
-    投稿先
-  */
 
   if (
     !toX.checked &&
@@ -951,10 +1038,6 @@ send.onclick = async () => {
   }
 
 
-  /*
-    Instagram画像必須
-  */
-
   if (
     toIg.checked &&
     files.length === 0
@@ -966,10 +1049,6 @@ send.onclick = async () => {
     return;
   }
 
-
-  /*
-    Instagram最大10枚
-  */
 
   if (
     toIg.checked &&
@@ -983,10 +1062,6 @@ send.onclick = async () => {
   }
 
 
-  /*
-    X最大4枚
-  */
-
   if (
     toX.checked &&
     files.length > 4
@@ -999,17 +1074,9 @@ send.onclick = async () => {
   }
 
 
-  /*
-    ======================================
-    予約日時チェック
-    ======================================
-
-    今はUI確認段階。
-
-    まだサーバー側の予約機能は
-    実装していないので、
-    予約を選択した場合はここで止める。
-  */
+  /* ======================================
+     予約日時チェック
+  ====================================== */
 
   if (postLater.checked) {
 
@@ -1054,8 +1121,8 @@ send.onclick = async () => {
 
 
     /*
-      次の段階でここを
-      /api/schedule などへ接続する。
+      まだ予約サーバー未接続。
+      次はここを/api/scheduleへ繋ぐ。
     */
 
     status.textContent =
@@ -1065,11 +1132,9 @@ send.onclick = async () => {
   }
 
 
-  /*
-    ======================================
-    ここから従来の今すぐ投稿
-    ======================================
-  */
+  /* ======================================
+     今すぐ投稿
+  ====================================== */
 
   send.disabled =
     true;
@@ -1105,9 +1170,7 @@ send.onclick = async () => {
 
 
     /*
-      ====================================
       X用画像
-      ====================================
     */
 
     if (
@@ -1141,9 +1204,7 @@ send.onclick = async () => {
 
 
     /*
-      ====================================
       Instagram用画像
-      ====================================
     */
 
     if (
@@ -1207,10 +1268,6 @@ send.onclick = async () => {
     status.textContent =
       "投稿中…";
 
-
-    /*
-      APIへ送信
-    */
 
     const r =
       await fetch(
@@ -1297,12 +1354,13 @@ send.onclick = async () => {
 };
 
 
-/*
-  初期表示
-*/
+/* ========================================
+   初期表示
+======================================== */
 
 renderPreview();
 updateTimingUI();
+updateScheduleDisplay();
 
 </script>
 
