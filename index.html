@@ -412,11 +412,6 @@
   </div>
 
 
-<script type="module">
-import { upload } from "https://esm.sh/@vercel/blob/client";
-window.vercelBlobUpload = upload;
-</script>
-
 <script>
 
 /* ========================================
@@ -980,24 +975,59 @@ async function makeInstagramImage(f) {
 ======================================== */
 
 async function uploadFileToBlob(f) {
-  if (typeof window.vercelBlobUpload !== "function") {
-    throw new Error("Blobアップロード機能を読み込めませんでした");
+
+  const response =
+    await fetch(
+      "/api/upload",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            f.type ||
+            "application/octet-stream",
+
+          "X-File-Name":
+            encodeURIComponent(
+              f.name || "image"
+            ),
+        },
+
+        body: f,
+      }
+    );
+
+  let result;
+
+  try {
+    result =
+      await response.json();
+  } catch {
+    throw new Error(
+      `画像アップロード応答エラー (${response.status})`
+    );
   }
 
-  const blob = await window.vercelBlobUpload(
-    `post-images/${crypto.randomUUID()}-${f.name || "image"}`,
-    f,
-    {
-      access: "public",
-      handleUploadUrl: "/api/upload",
-    }
-  );
+  if (
+    !response.ok ||
+    !result.ok
+  ) {
+    throw new Error(
+      result.error ||
+      `画像アップロード失敗 (${response.status})`
+    );
+  }
 
   return {
-    url: blob.url,
-    mimeType: f.type || "image/jpeg",
+    url: result.url,
+
+    mimeType:
+      result.mimeType ||
+      f.type ||
+      "image/jpeg",
   };
 }
+
 
 async function makeInstagramBlob(f) {
   const bitmap = await createImageBitmap(f);
@@ -1254,258 +1284,4 @@ send.addEventListener(
           datetime-local は
           端末のローカル日時。
 
-          toISOString() にして
-          UTC時刻としてサーバーへ保存する。
-        */
-
-        body.scheduleAt =
-          scheduledDate.toISOString();
-
-        endpoint =
-          "/api/schedule";
-
-        status.textContent =
-          "予約を保存しています…";
-
-      } else {
-
-        endpoint =
-          "/api/publish";
-
-        status.textContent =
-          "投稿中…";
-      }
-
-
-      /* ==================================
-         APIへ送信
-      ================================== */
-
-      const response =
-        await fetch(
-          endpoint,
-          {
-
-            method:
-              "POST",
-
-            headers: {
-
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              JSON.stringify(body)
-          }
-        );
-
-
-      let result;
-
-
-      try {
-
-        result =
-          await response.json();
-
-      } catch (error) {
-
-        throw new Error(
-          `サーバー応答エラー (${response.status})`
-        );
-      }
-
-
-      console.log(
-        postLater.checked
-          ? "schedule response:"
-          : "publish response:",
-        result
-      );
-
-
-      /* ==================================
-         成功
-      ================================== */
-
-      if (
-        response.ok &&
-        result.ok
-      ) {
-
-        if (postLater.checked) {
-
-          status.textContent =
-            "✓ 投稿を予約しました";
-
-        } else {
-
-          status.textContent =
-            "✓ 投稿しました";
-        }
-
-
-        /* 投稿内容リセット */
-
-        caption.value =
-          "";
-
-        selectedFiles =
-          [];
-
-        file.value =
-          "";
-
-        renderPreview();
-
-
-        /* 予約日時リセット */
-
-        if (postLater.checked) {
-
-          scheduleAt.value =
-            "";
-
-          updateScheduleButton();
-
-          updateMinimumScheduleTime();
-        }
-
-        return;
-      }
-
-
-      /* ==================================
-         APIエラー
-      ================================== */
-
-      throw new Error(
-
-        result.errors?.instagram ||
-
-        result.errors?.x ||
-
-        result.error ||
-
-        (
-          postLater.checked
-
-            ? `予約できませんでした (${response.status})`
-
-            : `投稿できませんでした (${response.status})`
-        )
-      );
-
-
-    } catch (error) {
-
-      console.error(
-        postLater.checked
-          ? "Schedule error:"
-          : "Publish error:",
-        error
-      );
-
-
-      showError(
-        error?.message ||
-
-        (
-          postLater.checked
-
-            ? "予約処理でエラーが発生しました"
-
-            : "画像処理または接続でエラーが発生しました"
-        )
-      );
-
-
-    } finally {
-
-      send.disabled =
-        false;
-
-      addImages.disabled =
-        false;
-
-      clearImages.disabled =
-        false;
-    }
-  }
-);
-
-
-/* ========================================
-   エラー監視
-======================================== */
-
-window.addEventListener(
-  "error",
-  (event) => {
-
-    console.error(
-      "JavaScript Error:",
-      event.error || event
-    );
-
-    const line =
-      event.lineno
-        ? ` / 行:${event.lineno}`
-        : "";
-
-    const column =
-      event.colno
-        ? `:${event.colno}`
-        : "";
-
-    showError(
-      `JSエラー: ${
-        event.message ||
-        "不明なエラー"
-      }${line}${column}`
-    );
-  }
-);
-
-
-window.addEventListener(
-  "unhandledrejection",
-  (event) => {
-
-    console.error(
-      "Unhandled Promise Rejection:",
-      event.reason
-    );
-
-    const reason =
-      event.reason?.message ||
-      String(
-        event.reason ||
-        "不明なエラー"
-      );
-
-    showError(
-      `Promiseエラー: ${reason}`
-    );
-  }
-);
-
-
-/* ========================================
-   初期化
-======================================== */
-
-renderPreview();
-
-updateTimingUI();
-
-updateMinimumScheduleTime();
-
-updateScheduleButton();
-
-</script>
-
-</main>
-</body>
-</html>
+       
