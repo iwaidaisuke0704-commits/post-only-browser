@@ -1,48 +1,52 @@
-
 import { put } from "@vercel/blob";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
+      ok: false,
       error: "Method not allowed",
     });
   }
 
   try {
-    const {
-      caption,
-      x,
-      instagram,
-      images = [],
-      xImages = [],
-      imageBase64,
-      mimeType,
-      scheduleAt,
-    } = req.body || {};
+    const body = req.body || {};
+
+    const caption =
+      typeof body.caption === "string"
+        ? body.caption.trim()
+        : "";
+
+    const x = Boolean(body.x);
+    const instagram = Boolean(body.instagram);
+    const scheduleAt = body.scheduleAt;
 
     // =====================================
     // 基本チェック
     // =====================================
 
-    if (!caption?.trim()) {
+    if (!caption) {
       return res.status(400).json({
+        ok: false,
         error: "投稿文がありません",
       });
     }
 
     if (!x && !instagram) {
       return res.status(400).json({
+        ok: false,
         error: "投稿先が選択されていません",
       });
     }
 
     if (!scheduleAt) {
       return res.status(400).json({
+        ok: false,
         error: "予約日時がありません",
       });
     }
 
-    const scheduledDate = new Date(scheduleAt);
+    const scheduledDate =
+      new Date(scheduleAt);
 
     if (
       Number.isNaN(
@@ -50,6 +54,7 @@ export default async function handler(req, res) {
       )
     ) {
       return res.status(400).json({
+        ok: false,
         error: "予約日時が正しくありません",
       });
     }
@@ -59,9 +64,66 @@ export default async function handler(req, res) {
       Date.now()
     ) {
       return res.status(400).json({
+        ok: false,
         error: "未来の日時を指定してください",
       });
     }
+
+    // =====================================
+    // Blob画像URLを整える
+    // =====================================
+
+    function normalizeImages(value) {
+      if (!Array.isArray(value)) {
+        return [];
+      }
+
+      return value
+        .map((item) => {
+
+          // URL文字列だけの場合
+          if (
+            typeof item === "string" &&
+            /^https?:\/\//i.test(item)
+          ) {
+            return {
+              url: item,
+              mimeType: "image/jpeg",
+            };
+          }
+
+          // { url, mimeType } の場合
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof item.url === "string" &&
+            /^https?:\/\//i.test(item.url)
+          ) {
+            return {
+              url: item.url,
+
+              mimeType:
+                typeof item.mimeType === "string" &&
+                item.mimeType
+                  ? item.mimeType
+                  : "image/jpeg",
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+    }
+
+    const xImages =
+      normalizeImages(
+        body.xImages
+      );
+
+    const images =
+      normalizeImages(
+        body.images
+      );
 
     // =====================================
     // 枚数チェック
@@ -69,33 +131,63 @@ export default async function handler(req, res) {
 
     if (
       x &&
-      Array.isArray(xImages) &&
       xImages.length > 4
     ) {
       return res.status(400).json({
+        ok: false,
         error: "Xは最大4枚です",
       });
     }
 
     if (
       instagram &&
-      Array.isArray(images) &&
       images.length > 10
     ) {
       return res.status(400).json({
+        ok: false,
         error: "Instagramは最大10枚です",
       });
     }
 
     if (
       instagram &&
-      (!Array.isArray(images) ||
-        images.length === 0) &&
-      !imageBase64
+      images.length === 0
     ) {
       return res.status(400).json({
+        ok: false,
+        error: "Instagram投稿には画像が必要です",
+      });
+    }
+
+    // =====================================
+    // Blob URL変換失敗チェック
+    // =====================================
+
+    if (
+      x &&
+      Array.isArray(body.xImages) &&
+      body.xImages.length > 0 &&
+      xImages.length !==
+        body.xImages.length
+    ) {
+      return res.status(400).json({
+        ok: false,
         error:
-          "Instagram投稿には画像が必要です",
+          "X画像のBlob URLが正しくありません",
+      });
+    }
+
+    if (
+      instagram &&
+      Array.isArray(body.images) &&
+      body.images.length > 0 &&
+      images.length !==
+        body.images.length
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "Instagram画像のBlob URLが正しくありません",
       });
     }
 
@@ -107,7 +199,10 @@ export default async function handler(req, res) {
       crypto.randomUUID();
 
     // =====================================
-    // 保存する予約データ
+    // 予約データ
+    //
+    // ★ Base64画像本体は保存しない
+    // ★ Blob URLだけ保存
     // =====================================
 
     const job = {
@@ -121,35 +216,19 @@ export default async function handler(req, res) {
       scheduleAt:
         scheduledDate.toISOString(),
 
-      caption:
-        caption.trim(),
+      caption,
 
-      x:
-        Boolean(x),
+      x,
 
-      instagram:
-        Boolean(instagram),
+      instagram,
 
-      images:
-        Array.isArray(images)
-          ? images
-          : [],
+      xImages,
 
-      xImages:
-        Array.isArray(xImages)
-          ? xImages
-          : [],
-
-      // 旧形式互換
-      imageBase64:
-        imageBase64 || null,
-
-      mimeType:
-        mimeType || null,
+      images,
     };
 
     // =====================================
-    // Vercel Blobへ保存
+    // Vercel Blobへ予約JSON保存
     // =====================================
 
     const filename =
@@ -176,8 +255,15 @@ export default async function handler(req, res) {
         id,
         scheduleAt:
           job.scheduleAt,
+
         url:
           blob.url,
+
+        xImages:
+          xImages.length,
+
+        images:
+          images.length,
       }
     );
 
@@ -198,6 +284,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
+
     console.error(
       "Schedule error:",
       error
@@ -207,10 +294,8 @@ export default async function handler(req, res) {
       ok: false,
 
       error:
-        String(
-          error?.message ||
-          error
-        ),
+        error?.message ||
+        String(error),
     });
   }
 }
