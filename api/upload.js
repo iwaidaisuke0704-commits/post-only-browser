@@ -1,60 +1,122 @@
-import { handleUpload } from "@vercel/blob/client";
+import { put } from "@vercel/blob";
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+async function readBody(req) {
+  const chunks = [];
+
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks);
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
+      ok: false,
       error: "Method not allowed",
     });
   }
 
   try {
-    const body = req.body;
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({
+        ok: false,
+        error: "BLOB_READ_WRITE_TOKEN がありません",
+      });
+    }
 
-    const jsonResponse = await handleUpload({
-      body,
-      request: req,
+    const contentType =
+      req.headers["content-type"] ||
+      "application/octet-stream";
 
-      onBeforeGenerateToken: async (pathname) => {
-        console.log("Generating token for:", pathname);
+    if (!contentType.startsWith("image/")) {
+      return res.status(400).json({
+        ok: false,
+        error: "画像ファイルではありません",
+      });
+    }
 
-        return {
-          allowedContentTypes: [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/heic",
-            "image/heif",
-          ],
+    const filenameHeader =
+      req.headers["x-file-name"];
 
-          maximumSizeInBytes: 20 * 1024 * 1024,
+    const originalName =
+      filenameHeader
+        ? decodeURIComponent(filenameHeader)
+        : "image";
 
-          addRandomSuffix: true,
+    const safeName =
+      originalName.replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      );
 
-          tokenPayload: JSON.stringify({
-            purpose: "scheduled-post",
-          }),
-        };
-      },
+    const pathname =
+      `post-images/${crypto.randomUUID()}-${safeName}`;
 
-      onUploadCompleted: async ({
-        blob,
-        tokenPayload,
-      }) => {
-        console.log(
-          "Upload completed:",
-          blob?.url,
-          tokenPayload
-        );
-      },
+    const fileBuffer =
+      await readBody(req);
+
+    if (!fileBuffer.length) {
+      return res.status(400).json({
+        ok: false,
+        error: "画像データがありません",
+      });
+    }
+
+    console.log(
+      "Server Blob upload:",
+      pathname,
+      fileBuffer.length,
+      contentType
+    );
+
+    const blob =
+      await put(
+        pathname,
+        fileBuffer,
+        {
+          access: "public",
+
+          contentType,
+
+          addRandomSuffix: false,
+
+          token:
+            process.env
+              .BLOB_READ_WRITE_TOKEN,
+        }
+      );
+
+    return res.status(200).json({
+      ok: true,
+      url: blob.url,
+      pathname: blob.pathname,
+      mimeType: contentType,
     });
 
-    return res.status(200).json(jsonResponse);
   } catch (error) {
-    console.error("UPLOAD ERROR:", error);
-    console.error("STACK:", error?.stack);
+    console.error(
+      "SERVER BLOB UPLOAD ERROR:",
+      error
+    );
+
+    console.error(
+      "STACK:",
+      error?.stack
+    );
 
     return res.status(500).json({
-      error: error?.message || String(error),
+      ok: false,
+      error:
+        error?.message ||
+        String(error),
     });
   }
 }
