@@ -1,5 +1,3 @@
-import { handleUpload } from "@vercel/blob/client";
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
@@ -9,75 +7,210 @@ export default async function handler(req, res) {
 
   try {
     console.log("=== /api/upload START ===");
-    console.log("Method:", req.method);
-    console.log("Has body:", !!req.body);
-    console.log("BLOB_READ_WRITE_TOKEN exists:", !!process.env.BLOB_READ_WRITE_TOKEN);
-    console.log("BLOB_STORE_ID exists:", !!process.env.BLOB_STORE_ID);
+
+    console.log(
+      "BLOB_READ_WRITE_TOKEN exists:",
+      !!process.env.BLOB_READ_WRITE_TOKEN
+    );
+
+    console.log(
+      "BLOB_STORE_ID exists:",
+      !!process.env.BLOB_STORE_ID
+    );
+
+    // -----------------------------------------
+    // Dynamic import
+    // -----------------------------------------
+    let handleUpload;
+
+    try {
+      console.log(
+        "Trying dynamic import: @vercel/blob/client"
+      );
+
+      const blobClient = await import(
+        "@vercel/blob/client"
+      );
+
+      console.log(
+        "Dynamic import SUCCESS"
+      );
+
+      console.log(
+        "Module exports:",
+        Object.keys(blobClient)
+      );
+
+      handleUpload = blobClient.handleUpload;
+
+      if (typeof handleUpload !== "function") {
+        throw new Error(
+          "handleUpload was not exported from @vercel/blob/client"
+        );
+      }
+
+    } catch (importError) {
+
+      console.error(
+        "========== BLOB IMPORT ERROR =========="
+      );
+
+      console.error(
+        "Import error object:",
+        importError
+      );
+
+      console.error(
+        "Import error name:",
+        importError?.name
+      );
+
+      console.error(
+        "Import error message:",
+        importError?.message
+      );
+
+      console.error(
+        "Import error stack:",
+        importError?.stack
+      );
+
+      console.error(
+        "Import error cause:",
+        importError?.cause
+      );
+
+      console.error(
+        "========== END BLOB IMPORT ERROR =========="
+      );
+
+      return res.status(500).json({
+        stage: "dynamic-import",
+        error:
+          importError?.message ||
+          String(importError),
+        name:
+          importError?.name ||
+          null,
+        stack:
+          importError?.stack ||
+          null,
+        cause:
+          importError?.cause
+            ? String(importError.cause)
+            : null,
+      });
+    }
+
+
+    // -----------------------------------------
+    // Blob client token
+    // -----------------------------------------
 
     const body = req.body;
 
-    const jsonResponse = await handleUpload({
-      body,
-      request: req,
+    console.log(
+      "Calling handleUpload..."
+    );
 
-      onBeforeGenerateToken: async (pathname) => {
-        console.log("onBeforeGenerateToken called");
-        console.log("pathname:", pathname);
+    const jsonResponse =
+      await handleUpload({
+        body,
+        request: req,
 
-        return {
-          allowedContentTypes: [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/heic",
-            "image/heif",
-          ],
+        onBeforeGenerateToken:
+          async (pathname) => {
 
-          addRandomSuffix: true,
+            console.log(
+              "onBeforeGenerateToken called"
+            );
 
-          tokenPayload: JSON.stringify({
-            purpose: "scheduled-post",
-          }),
-        };
-      },
+            console.log(
+              "pathname:",
+              pathname
+            );
 
-      onUploadCompleted: async ({
-        blob,
-        tokenPayload,
-      }) => {
-        console.log("=== UPLOAD COMPLETED ===");
-        console.log("Blob URL:", blob?.url);
-        console.log("Token payload:", tokenPayload);
-      },
-    });
+            return {
+              allowedContentTypes: [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/heic",
+                "image/heif",
+              ],
 
-    console.log("=== handleUpload SUCCESS ===");
-    console.log("Response type:", jsonResponse?.type);
+              addRandomSuffix: true,
 
-    return res.status(200).json(jsonResponse);
+              tokenPayload:
+                JSON.stringify({
+                  purpose:
+                    "scheduled-post",
+                }),
+            };
+          },
+
+        onUploadCompleted:
+          async ({
+            blob,
+            tokenPayload,
+          }) => {
+
+            console.log(
+              "=== UPLOAD COMPLETED ==="
+            );
+
+            console.log(
+              "Blob URL:",
+              blob?.url
+            );
+
+            console.log(
+              "Token payload:",
+              tokenPayload
+            );
+          },
+      });
+
+
+    console.log(
+      "=== handleUpload SUCCESS ==="
+    );
+
+    return res
+      .status(200)
+      .json(jsonResponse);
+
+
   } catch (error) {
-    console.error("========== UPLOAD ERROR ==========");
-    console.error("Error object:", error);
-    console.error("Error name:", error?.name);
-    console.error("Error message:", error?.message);
-    console.error("Error stack:", error?.stack);
-    console.error("Error cause:", error?.cause);
 
-    try {
-      console.error(
-        "Error JSON:",
-        JSON.stringify(
-          error,
-          Object.getOwnPropertyNames(error),
-          2
-        )
-      );
-    } catch (jsonError) {
-      console.error(
-        "Could not stringify error:",
-        jsonError
-      );
-    }
+    console.error(
+      "========== HANDLE UPLOAD ERROR =========="
+    );
+
+    console.error(
+      "Error object:",
+      error
+    );
+
+    console.error(
+      "Error name:",
+      error?.name
+    );
+
+    console.error(
+      "Error message:",
+      error?.message
+    );
+
+    console.error(
+      "Error stack:",
+      error?.stack
+    );
+
+    console.error(
+      "Error cause:",
+      error?.cause
+    );
 
     console.error(
       "BLOB_READ_WRITE_TOKEN exists:",
@@ -89,14 +222,29 @@ export default async function handler(req, res) {
       !!process.env.BLOB_STORE_ID
     );
 
-    console.error("========== END UPLOAD ERROR ==========");
+    console.error(
+      "========== END HANDLE UPLOAD ERROR =========="
+    );
 
     return res.status(500).json({
-      error: error?.message || String(error),
-      name: error?.name || null,
-      cause: error?.cause
-        ? String(error.cause)
-        : null,
+      stage: "handle-upload",
+
+      error:
+        error?.message ||
+        String(error),
+
+      name:
+        error?.name ||
+        null,
+
+      stack:
+        error?.stack ||
+        null,
+
+      cause:
+        error?.cause
+          ? String(error.cause)
+          : null,
     });
   }
 }
