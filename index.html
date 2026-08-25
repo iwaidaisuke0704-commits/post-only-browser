@@ -412,6 +412,11 @@
   </div>
 
 
+<script type="module">
+import { upload } from "https://esm.sh/@vercel/blob/client";
+window.vercelBlobUpload = upload;
+</script>
+
 <script>
 
 /* ========================================
@@ -971,6 +976,79 @@ async function makeInstagramImage(f) {
 
 
 /* ========================================
+   Blobへ直接アップロード
+======================================== */
+
+async function uploadFileToBlob(f) {
+  if (typeof window.vercelBlobUpload !== "function") {
+    throw new Error("Blobアップロード機能を読み込めませんでした");
+  }
+
+  const blob = await window.vercelBlobUpload(
+    `post-images/${crypto.randomUUID()}-${f.name || "image"}`,
+    f,
+    {
+      access: "public",
+      handleUploadUrl: "/api/upload",
+    }
+  );
+
+  return {
+    url: blob.url,
+    mimeType: f.type || "image/jpeg",
+  };
+}
+
+async function makeInstagramBlob(f) {
+  const bitmap = await createImageBitmap(f);
+  const canvas = document.createElement("canvas");
+
+  canvas.width = 1080;
+  canvas.height = 1350;
+
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("画像処理用Canvasを作成できませんでした");
+  }
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 1080, 1350);
+
+  const scale = Math.min(
+    1080 / bitmap.width,
+    1350 / bitmap.height
+  );
+
+  const drawWidth = Math.round(bitmap.width * scale);
+  const drawHeight = Math.round(bitmap.height * scale);
+  const x = Math.round((1080 - drawWidth) / 2);
+  const y = Math.round((1350 - drawHeight) / 2);
+
+  ctx.drawImage(bitmap, x, y, drawWidth, drawHeight);
+  bitmap.close();
+
+  const jpegBlob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      value => value
+        ? resolve(value)
+        : reject(new Error("Instagram画像の生成に失敗しました")),
+      "image/jpeg",
+      0.92
+    );
+  });
+
+  return uploadFileToBlob(
+    new File(
+      [jpegBlob],
+      `instagram-${crypto.randomUUID()}.jpg`,
+      { type: "image/jpeg" }
+    )
+  );
+}
+
+/* ========================================
    投稿
 ======================================== */
 
@@ -1135,77 +1213,31 @@ send.addEventListener(
 
 
       /* ==================================
-         X用画像
+         X用画像をBlobへ直接アップロード
       ================================== */
 
-      if (
-        toX.checked &&
-        files.length
-      ) {
-
+      if (toX.checked && files.length) {
         status.textContent =
-          `X用画像を準備中… ${files.length}枚`;
+          `X用画像をアップロード中… ${files.length}枚`;
 
         body.xImages =
           await Promise.all(
-
-            files.map(
-              async (f) => ({
-
-                imageBase64:
-                  await b64(f),
-
-                mimeType:
-                  f.type ||
-                  "image/jpeg"
-              })
-            )
+            files.map((f) => uploadFileToBlob(f))
           );
       }
 
-
       /* ==================================
-         Instagram用画像
+         Instagram用画像をBlobへ直接アップロード
       ================================== */
 
-      if (
-        toIg.checked &&
-        files.length
-      ) {
-
+      if (toIg.checked && files.length) {
         status.textContent =
-          `Instagram用画像を処理中… ${files.length}枚`;
+          `Instagram用画像をアップロード中… ${files.length}枚`;
 
         body.images =
           await Promise.all(
-
-            files.map(
-              (f) =>
-                makeInstagramImage(f)
-            )
+            files.map((f) => makeInstagramBlob(f))
           );
-      }
-
-
-      /* ==================================
-         旧1枚形式との互換
-      ================================== */
-
-      if (body.xImages.length) {
-
-        body.imageBase64 =
-          body.xImages[0].imageBase64;
-
-        body.mimeType =
-          body.xImages[0].mimeType;
-
-      } else if (body.images.length) {
-
-        body.imageBase64 =
-          body.images[0].imageBase64;
-
-        body.mimeType =
-          body.images[0].mimeType;
       }
 
 
