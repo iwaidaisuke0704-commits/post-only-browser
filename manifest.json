@@ -1,1 +1,8 @@
-
+{
+  "name": "POST ONLY",
+  "short_name": "POST ONLY",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111111"
+}
