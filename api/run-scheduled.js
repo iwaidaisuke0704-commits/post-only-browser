@@ -1,86 +1,112 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<title>run-scheduled.js</title>
-</head>
-<body>
-<pre>import { list, put } from &quot;@vercel/blob&quot;;
+import { list, put } from "@vercel/blob";
 
-const SCHEDULE_PREFIX = &quot;scheduled/&quot;;
+const SCHEDULE_PREFIX = "scheduled/";
 
 async function loadJson(url) {
-  const response = await fetch(url, { cache: &quot;no-store&quot; });
-  if (!response.ok) throw new Error(`予約データ取得失敗 (${response.status})`);
+  const response = await fetch(url, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`予約データ取得失敗 (${response.status})`);
+  }
+
   return await response.json();
 }
 
 async function saveJob(pathname, job) {
   await put(pathname, JSON.stringify(job), {
-    access: &quot;public&quot;,
-    contentType: &quot;application/json&quot;,
+    access: "public",
+    contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
   });
 }
 
 function getPublishUrl(req) {
-  const proto = req.headers[&quot;x-forwarded-proto&quot;] || &quot;https&quot;;
-  const host = req.headers[&quot;x-forwarded-host&quot;] || req.headers.host;
-  if (!host) throw new Error(&quot;ホスト名を取得できません&quot;);
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+
+  if (!host) {
+    throw new Error("ホスト名を取得できません");
+  }
+
   return `${proto}://${host}/api/publish`;
 }
 
 function isHttpUrl(value) {
-  return typeof value === &quot;string&quot; &amp;&amp; /^https?:\/\//i.test(value);
+  return typeof value === "string" && /^https?:\/\//i.test(value);
 }
 
 async function blobImageToBase64(item) {
-  const url = typeof item === &quot;string&quot; ? item : item?.url;
+  const url =
+    typeof item === "string"
+      ? item
+      : item?.url;
+
   const fallbackMime =
-    typeof item === &quot;object&quot; &amp;&amp; typeof item?.mimeType === &quot;string&quot;
+    typeof item === "object" &&
+    typeof item?.mimeType === "string"
       ? item.mimeType
-      : &quot;image/jpeg&quot;;
+      : "image/jpeg";
 
-  if (!isHttpUrl(url)) throw new Error(&quot;予約画像のBlob URLが正しくありません&quot;);
+  if (!isHttpUrl(url)) {
+    throw new Error("予約画像のBlob URLが正しくありません");
+  }
 
-  const response = await fetch(url, { cache: &quot;no-store&quot; });
-  if (!response.ok) throw new Error(`予約画像取得失敗 (${response.status})`);
+  const response = await fetch(url, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`予約画像取得失敗 (${response.status})`);
+  }
 
   const arrayBuffer = await response.arrayBuffer();
-  const mimeType = response.headers.get(&quot;content-type&quot;) || fallbackMime || &quot;image/jpeg&quot;;
+
+  const mimeType =
+    response.headers.get("content-type") ||
+    fallbackMime ||
+    "image/jpeg";
 
   return {
-    imageBase64: Buffer.from(arrayBuffer).toString(&quot;base64&quot;),
+    imageBase64: Buffer.from(arrayBuffer).toString("base64"),
     mimeType,
   };
 }
 
 async function normalizeScheduledImages(items) {
-  if (!Array.isArray(items)) return [];
+  if (!Array.isArray(items)) {
+    return [];
+  }
 
   return await Promise.all(
-    items.map(async (item) =&gt; {
+    items.map(async (item) => {
       if (
         isHttpUrl(item) ||
-        (item &amp;&amp; typeof item === &quot;object&quot; &amp;&amp; isHttpUrl(item.url))
+        (
+          item &&
+          typeof item === "object" &&
+          isHttpUrl(item.url)
+        )
       ) {
         return await blobImageToBase64(item);
       }
 
       if (
-        item &amp;&amp;
-        typeof item === &quot;object&quot; &amp;&amp;
-        typeof item.imageBase64 === &quot;string&quot; &amp;&amp;
+        item &&
+        typeof item === "object" &&
+        typeof item.imageBase64 === "string" &&
         item.imageBase64
       ) {
         return {
           imageBase64: item.imageBase64,
-          mimeType: item.mimeType || &quot;image/jpeg&quot;,
+          mimeType: item.mimeType || "image/jpeg",
         };
       }
 
-      throw new Error(&quot;予約画像データの形式が正しくありません&quot;);
+      throw new Error("予約画像データの形式が正しくありません");
     })
   );
 }
@@ -88,8 +114,11 @@ async function normalizeScheduledImages(items) {
 async function publishJob(req, job) {
   const publishUrl = getPublishUrl(req);
 
-  const images = await normalizeScheduledImages(job.images);
-  const xImages = await normalizeScheduledImages(job.xImages);
+  const images =
+    await normalizeScheduledImages(job.images);
+
+  const xImages =
+    await normalizeScheduledImages(job.xImages);
 
   const body = {
     caption: job.caption,
@@ -102,23 +131,28 @@ async function publishJob(req, job) {
   };
 
   const response = await fetch(publishUrl, {
-    method: &quot;POST&quot;,
-    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 
   let data;
+
   try {
     data = await response.json();
   } catch {
-    throw new Error(`publish API応答エラー (${response.status})`);
+    throw new Error(
+      `publish API応答エラー (${response.status})`
+    );
   }
 
   if (!response.ok || !data.ok) {
     throw new Error(
       data.error ||
-        Object.values(data.errors || {}).join(&quot; / &quot;) ||
-        `投稿失敗 (${response.status})`
+      Object.values(data.errors || {}).join(" / ") ||
+      `投稿失敗 (${response.status})`
     );
   }
 
@@ -126,12 +160,29 @@ async function publishJob(req, job) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== &quot;GET&quot; &amp;&amp; req.method !== &quot;POST&quot;) {
-    return res.status(405).json({ ok: false, error: &quot;Method not allowed&quot; });
+  if (
+    req.method !== "GET" &&
+    req.method !== "POST"
+  ) {
+    return res.status(405).json({
+      ok: false,
+      error: "Method not allowed",
+    });
   }
 
   try {
-    const { blobs } = await list({ prefix: SCHEDULE_PREFIX });
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({
+        ok: false,
+        error: "BLOB_READ_WRITE_TOKEN がありません",
+      });
+    }
+
+    const { blobs } = await list({
+      prefix: SCHEDULE_PREFIX,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+
     const now = Date.now();
     const results = [];
 
@@ -139,53 +190,84 @@ export default async function handler(req, res) {
       try {
         const job = await loadJson(blob.url);
 
-        if (job.status !== &quot;pending&quot;) continue;
+        if (job.status !== "pending") {
+          continue;
+        }
 
-        const scheduledTime = new Date(job.scheduleAt).getTime();
-        if (Number.isNaN(scheduledTime)) continue;
-        if (scheduledTime &gt; now) continue;
+        const scheduledTime =
+          new Date(job.scheduleAt).getTime();
+
+        if (Number.isNaN(scheduledTime)) {
+          continue;
+        }
+
+        if (scheduledTime > now) {
+          continue;
+        }
 
         const runningJob = {
           ...job,
-          status: &quot;running&quot;,
+          status: "running",
           startedAt: new Date().toISOString(),
         };
 
-        await saveJob(blob.pathname, runningJob);
+        await saveJob(
+          blob.pathname,
+          runningJob
+        );
 
         try {
-          const publishResult = await publishJob(req, runningJob);
+          const publishResult =
+            await publishJob(req, runningJob);
 
           const completedJob = {
             ...runningJob,
-            status: &quot;completed&quot;,
-            completedAt: new Date().toISOString(),
+            status: "completed",
+            completedAt:
+              new Date().toISOString(),
             result: publishResult,
           };
 
-          await saveJob(blob.pathname, completedJob);
-          results.push({ id: job.id, status: &quot;completed&quot; });
-        } catch (publishError) {
-          const failedJob = {
-            ...runningJob,
-            status: &quot;failed&quot;,
-            failedAt: new Date().toISOString(),
-            error: String(publishError?.message || publishError),
-          };
-
-          await saveJob(blob.pathname, failedJob);
+          await saveJob(
+            blob.pathname,
+            completedJob
+          );
 
           results.push({
             id: job.id,
-            status: &quot;failed&quot;,
+            status: "completed",
+          });
+        } catch (publishError) {
+          const failedJob = {
+            ...runningJob,
+            status: "failed",
+            failedAt:
+              new Date().toISOString(),
+            error: String(
+              publishError?.message ||
+              publishError
+            ),
+          };
+
+          await saveJob(
+            blob.pathname,
+            failedJob
+          );
+
+          results.push({
+            id: job.id,
+            status: "failed",
             error: failedJob.error,
           });
         }
       } catch (jobError) {
         results.push({
           pathname: blob.pathname,
-          status: &quot;error&quot;,
-          error: String(jobError?.message || jobError),
+          status: "error",
+          error: String(
+            jobError?.message ||
+            jobError
+          ),
         });
       }
     }
@@ -197,12 +279,22 @@ export default async function handler(req, res) {
       results,
     });
   } catch (error) {
+    console.error(
+      "RUN SCHEDULED ERROR:",
+      error
+    );
+
+    console.error(
+      "STACK:",
+      error?.stack
+    );
+
     return res.status(500).json({
       ok: false,
-      error: String(error?.message || error),
+      error: String(
+        error?.message ||
+        error
+      ),
     });
   }
 }
-</pre>
-</body>
-</html>
