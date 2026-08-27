@@ -71,7 +71,7 @@ export default async function handler(req, res) {
         .replace(/\/$/, "");
 
     const publishUrl =
-      `${qstashUrl}/v2/publish/${encodeURIComponent(destination)}`;
+      `${qstashUrl}/v2/publish/${destination}`;
 
     const notBefore = Math.floor(scheduledDate.getTime() / 1000);
 
