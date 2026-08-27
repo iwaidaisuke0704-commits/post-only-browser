@@ -1,4 +1,3 @@
-
 const file = document.querySelector("#file");
 const preview = document.querySelector("#preview");
 const pickArea = document.querySelector("#pickArea");
@@ -18,6 +17,8 @@ const scheduleBox = document.querySelector("#scheduleBox");
 const scheduleButton = document.querySelector("#scheduleButton");
 const scheduleButtonText = document.querySelector("#scheduleButtonText");
 const scheduleAt = document.querySelector("#scheduleAt");
+const aiInstruction = document.querySelector("#aiInstruction");
+const aiGenerate = document.querySelector("#aiGenerate");
 
 function showError(message) {
   status.classList.add("error");
@@ -283,6 +284,54 @@ async function makeInstagramBlob(f) {
     )
   );
 }
+
+
+aiGenerate.addEventListener("click", async () => {
+  clearStatus();
+
+  const instruction = aiInstruction.value.trim();
+  const currentCaption = caption.value.trim();
+
+  if (!instruction && !currentCaption) {
+    status.textContent = "AIへの指示か、元になる投稿文を入力してください";
+    return;
+  }
+
+  aiGenerate.disabled = true;
+  status.textContent = "AIが文章を作っています…";
+
+  try {
+    const prompt = [
+      instruction || "投稿文を自然で読みやすく整えてください。",
+      currentCaption ? `元の投稿文:\n${currentCaption}` : ""
+    ].filter(Boolean).join("\n\n");
+
+    const response = await fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: prompt })
+    });
+
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(`AIサーバー応答エラー (${response.status})`);
+    }
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || `AI生成に失敗しました (${response.status})`);
+    }
+
+    caption.value = result.text || "";
+    status.textContent = "✓ AI文章を作成しました";
+  } catch (error) {
+    console.error("AI generation error:", error);
+    showError(error?.message || "AI文章生成でエラーが発生しました");
+  } finally {
+    aiGenerate.disabled = false;
+  }
+});
 
 send.addEventListener("click", async () => {
   clearStatus();
