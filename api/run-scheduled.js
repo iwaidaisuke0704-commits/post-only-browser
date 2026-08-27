@@ -1,300 +1,75 @@
-import { list, put } from "@vercel/blob";
-
-const SCHEDULE_PREFIX = "scheduled/";
-
-async function loadJson(url) {
-  const response = await fetch(url, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`予約データ取得失敗 (${response.status})`);
-  }
-
-  return await response.json();
-}
-
-async function saveJob(pathname, job) {
-  await put(pathname, JSON.stringify(job), {
-    access: "public",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  });
-}
-
 function getPublishUrl(req) {
-  const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
-
-  if (!host) {
-    throw new Error("ホスト名を取得できません");
-  }
-
-  return `${proto}://${host}/api/publish`;
+  if (!host) throw new Error("ホスト名を取得できません");
+  return `https://${host}/api/publish`;
 }
 
 function isHttpUrl(value) {
-  return typeof value === "string" && /^https?:\/\//i.test(value);
+  return typeof value === "string" && /^https?:\\/\\//i.test(value);
 }
 
-async function blobImageToBase64(item) {
-  const url =
-    typeof item === "string"
-      ? item
-      : item?.url;
-
-  const fallbackMime =
-    typeof item === "object" &&
-    typeof item?.mimeType === "string"
-      ? item.mimeType
-      : "image/jpeg";
-
-  if (!isHttpUrl(url)) {
-    throw new Error("予約画像のBlob URLが正しくありません");
-  }
-
-  const response = await fetch(url, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`予約画像取得失敗 (${response.status})`);
-  }
-
+async function imageUrlToBase64(item) {
+  const url = typeof item === "string" ? item : item?.url;
+  const fallbackMime = item && typeof item === "object" && typeof item.mimeType === "string" ? item.mimeType : "image/jpeg";
+  if (!isHttpUrl(url)) throw new Error("予約画像URLが正しくありません");
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`予約画像取得失敗 (${response.status})`);
   const arrayBuffer = await response.arrayBuffer();
-
-  const mimeType =
-    response.headers.get("content-type") ||
-    fallbackMime ||
-    "image/jpeg";
-
   return {
     imageBase64: Buffer.from(arrayBuffer).toString("base64"),
-    mimeType,
+    mimeType: response.headers.get("content-type") || fallbackMime || "image/jpeg",
   };
 }
 
 async function normalizeScheduledImages(items) {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return await Promise.all(
-    items.map(async (item) => {
-      if (
-        isHttpUrl(item) ||
-        (
-          item &&
-          typeof item === "object" &&
-          isHttpUrl(item.url)
-        )
-      ) {
-        return await blobImageToBase64(item);
-      }
-
-      if (
-        item &&
-        typeof item === "object" &&
-        typeof item.imageBase64 === "string" &&
-        item.imageBase64
-      ) {
-        return {
-          imageBase64: item.imageBase64,
-          mimeType: item.mimeType || "image/jpeg",
-        };
-      }
-
-      throw new Error("予約画像データの形式が正しくありません");
-    })
-  );
-}
-
-async function publishJob(req, job) {
-  const publishUrl = getPublishUrl(req);
-
-  const images =
-    await normalizeScheduledImages(job.images);
-
-  const xImages =
-    await normalizeScheduledImages(job.xImages);
-
-  const body = {
-    caption: job.caption,
-    x: Boolean(job.x),
-    instagram: Boolean(job.instagram),
-    images,
-    xImages,
-    imageBase64: job.imageBase64 || undefined,
-    mimeType: job.mimeType || undefined,
-  };
-
-  const response = await fetch(publishUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  let data;
-
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error(
-      `publish API応答エラー (${response.status})`
-    );
-  }
-
-  if (!response.ok || !data.ok) {
-    throw new Error(
-      data.error ||
-      Object.values(data.errors || {}).join(" / ") ||
-      `投稿失敗 (${response.status})`
-    );
-  }
-
-  return data;
+  if (!Array.isArray(items)) return [];
+  return await Promise.all(items.map(async (item) => {
+    if (isHttpUrl(item) || (item && typeof item === "object" && isHttpUrl(item.url))) {
+      return await imageUrlToBase64(item);
+    }
+    if (item && typeof item === "object" && typeof item.imageBase64 === "string" && item.imageBase64) {
+      return { imageBase64: item.imageBase64, mimeType: item.mimeType || "image/jpeg" };
+    }
+    throw new Error("予約画像データの形式が正しくありません");
+  }));
 }
 
 export default async function handler(req, res) {
-  if (
-    req.method !== "GET" &&
-    req.method !== "POST"
-  ) {
-    return res.status(405).json({
-      ok: false,
-      error: "Method not allowed",
-    });
-  }
-
+  if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Method not allowed" });
   try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return res.status(500).json({
-        ok: false,
-        error: "BLOB_READ_WRITE_TOKEN がありません",
-      });
-    }
+    const job = req.body || {};
+    if (!job.id || !job.caption) return res.status(400).json({ ok:false, error:"予約データが正しくありません" });
 
-    const { blobs } = await list({
-      prefix: SCHEDULE_PREFIX,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+    const images = await normalizeScheduledImages(job.images);
+    const xImages = await normalizeScheduledImages(job.xImages);
+
+    console.log("QSTASH RUN:", {
+      id: job.id, scheduleAt: job.scheduleAt, x: Boolean(job.x),
+      instagram: Boolean(job.instagram), images: images.length, xImages: xImages.length
     });
 
-    const now = Date.now();
-    const results = [];
+    const response = await fetch(getPublishUrl(req), {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({
+        caption: job.caption, x: Boolean(job.x), instagram: Boolean(job.instagram),
+        images, xImages, imageBase64: job.imageBase64 || undefined, mimeType: job.mimeType || undefined,
+      }),
+    });
 
-    for (const blob of blobs) {
-      try {
-        const job = await loadJson(blob.url);
+    let data;
+    try { data = await response.json(); }
+    catch { throw new Error(`publish API応答エラー (${response.status})`); }
 
-        if (job.status !== "pending") {
-          continue;
-        }
-
-        const scheduledTime =
-          new Date(job.scheduleAt).getTime();
-
-        if (Number.isNaN(scheduledTime)) {
-          continue;
-        }
-
-        if (scheduledTime > now) {
-          continue;
-        }
-
-        const runningJob = {
-          ...job,
-          status: "running",
-          startedAt: new Date().toISOString(),
-        };
-
-        await saveJob(
-          blob.pathname,
-          runningJob
-        );
-
-        try {
-          const publishResult =
-            await publishJob(req, runningJob);
-
-          const completedJob = {
-            ...runningJob,
-            status: "completed",
-            completedAt:
-              new Date().toISOString(),
-            result: publishResult,
-          };
-
-          await saveJob(
-            blob.pathname,
-            completedJob
-          );
-
-          results.push({
-            id: job.id,
-            status: "completed",
-          });
-        } catch (publishError) {
-          const failedJob = {
-            ...runningJob,
-            status: "failed",
-            failedAt:
-              new Date().toISOString(),
-            error: String(
-              publishError?.message ||
-              publishError
-            ),
-          };
-
-          await saveJob(
-            blob.pathname,
-            failedJob
-          );
-
-          results.push({
-            id: job.id,
-            status: "failed",
-            error: failedJob.error,
-          });
-        }
-      } catch (jobError) {
-        results.push({
-          pathname: blob.pathname,
-          status: "error",
-          error: String(
-            jobError?.message ||
-            jobError
-          ),
-        });
-      }
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || Object.values(data.errors || {}).join(" / ") || `投稿失敗 (${response.status})`);
     }
 
-    return res.status(200).json({
-      ok: true,
-      checked: blobs.length,
-      processed: results.length,
-      results,
-    });
+    console.log("QStash scheduled post completed:", job.id);
+    return res.status(200).json({ ok:true, id:job.id, status:"completed", result:data });
   } catch (error) {
-    console.error(
-      "RUN SCHEDULED ERROR:",
-      error
-    );
-
-    console.error(
-      "STACK:",
-      error?.stack
-    );
-
-    return res.status(500).json({
-      ok: false,
-      error: String(
-        error?.message ||
-        error
-      ),
-    });
+    console.error("QSTASH RUN ERROR:", error);
+    console.error("STACK:", error?.stack);
+    return res.status(500).json({ ok:false, error:error?.message || String(error) });
   }
 }
