@@ -88,6 +88,16 @@ export default async function handler(req, res) {
       xImages: xImages.length,
     });
 
+    const primaryImage = xImages[0] || images[0] || null;
+    console.log("RUN IMAGE DEBUG:", {
+      primaryImageExists: Boolean(primaryImage?.imageBase64),
+      primaryImageBase64Length:
+        typeof primaryImage?.imageBase64 === "string"
+          ? primaryImage.imageBase64.length
+          : 0,
+      primaryMimeType: primaryImage?.mimeType || null,
+    });
+
     const response = await fetch(getPublishUrl(req), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,8 +107,16 @@ export default async function handler(req, res) {
         instagram: Boolean(job.instagram),
         images,
         xImages,
-        imageBase64: job.imageBase64 || undefined,
-        mimeType: job.mimeType || undefined,
+        imageBase64:
+          xImages[0]?.imageBase64 ||
+          images[0]?.imageBase64 ||
+          job.imageBase64 ||
+          undefined,
+        mimeType:
+          xImages[0]?.mimeType ||
+          images[0]?.mimeType ||
+          job.mimeType ||
+          undefined,
       }),
     });
 
