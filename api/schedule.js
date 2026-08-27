@@ -67,8 +67,12 @@ export default async function handler(req, res) {
     };
 
     const destination = getRunUrl(req);
+    const qstashUrl =
+      (process.env.QSTASH_URL || "https://qstash-us-east-1.upstash.io")
+        .replace(/\/$/, "");
+
     const publishUrl =
-      `https://qstash.upstash.io/v2/publish/${encodeURIComponent(destination)}`;
+      `${qstashUrl}/v2/publish/${encodeURIComponent(destination)}`;
 
     const notBefore = Math.floor(scheduledDate.getTime() / 1000);
 
