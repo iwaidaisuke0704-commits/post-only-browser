@@ -1,8 +1,7 @@
 function getRunUrl(req) {
-  const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   if (!host) throw new Error("ホスト名を取得できません");
-  return `${proto}://${host}/api/run-scheduled`;
+  return `https://${host}/api/run-scheduled`;
 }
 
 function normalizeImages(value) {
