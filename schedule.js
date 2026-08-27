@@ -1,7 +1,8 @@
 function getRunUrl(req) {
+  const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   if (!host) throw new Error("ホスト名を取得できません");
-  return `https://${host}/api/run-scheduled`;
+  return `${proto}://${host}/api/run-scheduled`;
 }
 
 function normalizeImages(value) {
@@ -71,11 +72,10 @@ export default async function handler(req, res) {
         .replace(/\/$/, "");
 
     const publishUrl =
-      `${qstashUrl}/v2/publish/${encodeURIComponent(destination)}`;
+      `${qstashUrl}/v2/publish/${destination}`;
 
     const notBefore = Math.floor(scheduledDate.getTime() / 1000);
 
-    // DEBUG: QStash接続確認（トークン等の秘密情報は出さない）
     console.log("QSTASH DEBUG:", {
       destination,
       qstashUrl,
@@ -97,13 +97,11 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
-
     console.log("QSTASH RESPONSE:", {
       status: response.status,
       ok: response.ok,
       body: text,
     });
-
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch {}
 
