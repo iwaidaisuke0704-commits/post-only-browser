@@ -71,9 +71,18 @@ export default async function handler(req, res) {
         .replace(/\/$/, "");
 
     const publishUrl =
-      `${qstashUrl}/v2/publish/${destination}`;
+      `${qstashUrl}/v2/publish/${encodeURIComponent(destination)}`;
 
     const notBefore = Math.floor(scheduledDate.getTime() / 1000);
+
+    // DEBUG: QStash接続確認（トークン等の秘密情報は出さない）
+    console.log("QSTASH DEBUG:", {
+      destination,
+      qstashUrl,
+      publishUrl,
+      scheduleAt: scheduledDate.toISOString(),
+      notBefore,
+    });
 
     const response = await fetch(publishUrl, {
       method: "POST",
@@ -88,6 +97,13 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
+
+    console.log("QSTASH RESPONSE:", {
+      status: response.status,
+      ok: response.ok,
+      body: text,
+    });
+
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch {}
 
